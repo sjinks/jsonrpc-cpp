@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief Implementation of the dispatcher class.
+ */
+
 #include "dispatcher.h"
 #include "dispatcher_p.h"
 #include "exception.h"
@@ -13,11 +18,11 @@ void dispatcher::add_internal_method(std::string_view method, handler_t&& handle
     this->d_ptr->add_handler(std::string(method), std::move(handler));
 }
 
-std::string dispatcher::parse_and_process_request(const std::string& r)
+std::string dispatcher::parse_and_process_request(const std::string& request)
 {
-    nlohmann::json request;
+    nlohmann::json req;
     try {
-        request = nlohmann::json::parse(r);
+        req = nlohmann::json::parse(request);
     }
     catch (const nlohmann::json::exception& e) {
         this->on_request();
@@ -29,7 +34,7 @@ std::string dispatcher::parse_and_process_request(const std::string& r)
         return json.dump();
     }
 
-    return this->process_request(request);
+    return this->process_request(req);
 }
 
 std::string dispatcher::process_request(const nlohmann::json& request)

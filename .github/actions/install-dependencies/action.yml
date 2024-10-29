@@ -7,4 +7,4 @@ runs:
       shell: bash
       run: |
         sudo apt-get update
-        sudo apt-get install -y libgmock-dev libgtest-dev nlohmann-json3-dev valgrind llvm gcovr
+        sudo apt-get install -y libgmock-dev libgtest-dev nlohmann-json3-dev valgrind llvm gcovr doxygen graphviz
