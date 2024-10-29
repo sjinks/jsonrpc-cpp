@@ -11,7 +11,7 @@ project(
     wwa_jsonrpc
     VERSION 1.0.0
     DESCRIPTION "JSON-RPC 2.0 library"
-    HOMEPAGE_URL "https://github.com/sjinks/jsonrpc-cpp"
+    HOMEPAGE_URL "https://sjinks.github.io/jsonrpc-cpp/"
     LANGUAGES CXX
 )
 
