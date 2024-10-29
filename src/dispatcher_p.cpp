@@ -2,8 +2,28 @@
 #include "dispatcher.h"
 #include "exception.h"
 
+/**
+ * @file
+ * @brief Implementation of the private members and methods of the JSON RPC dispatcher class.
+ *
+ * This file contains the definitions of the private members and methods used by the `dispatcher` class to manage method handlers and process requests.
+ * It includes functions for parsing, validating, and invoking JSON RPC requests, as well as generating error responses.
+ */
+
 namespace {
 
+/**
+ * @brief Checks if the provided JSON value is a valid JSON RPC request ID.
+ *
+ * @param id The JSON value to check.
+ * @return `true` if the JSON value is a valid request ID, `false` otherwise.
+ *
+ * @details This function checks if the provided JSON value is a valid JSON RPC request ID.
+ * According to the JSON RPC specification, a valid request ID can be a string, a number, or null.
+ * Additionally, this function also considers a discarded JSON value as valid.
+ *
+ * @see https://www.jsonrpc.org/specification#request_object
+ */
 bool is_valid_request_id(const nlohmann::json& id)
 {
     return id.is_string() || id.is_number() || id.is_null() || id.is_discarded();
@@ -13,7 +33,23 @@ bool is_valid_request_id(const nlohmann::json& id)
 
 namespace wwa::json_rpc {
 
-// NOLINTNEXTLINE(misc-use-anonymous-namespace) -- cannot move to an anonymous namespace because of ADL
+/**
+ * @brief Deserializes a JSON object into a `jsonrpc_request` structure.
+ *
+ * @param j The JSON object to deserialize.
+ * @param r The `jsonrpc_request` structure to populate.
+ *
+ * @details This function deserializes a JSON object into a `jsonrpc_request` structure.
+ * * It extracts the `jsonrpc` version, `method` name, `params`, and `id` from the JSON object.
+ * * If the `params` field is not present, it defaults to an empty array.
+ * * If the `params` field is an object, it is wrapped in an array.
+ *
+ * @note This function cannot be moved to an anonymous namespace because of Argument-Dependent Lookup (ADL).
+ *
+ * @see https://www.jsonrpc.org/specification#request_object
+ * @see https://github.com/nlohmann/json?tab=readme-ov-file#arbitrary-types-conversions
+ */
+// NOLINT(misc-use-anonymous-namespace) -- cannot move to an anonymous namespace because of ADL
 static void from_json(const nlohmann::json& j, jsonrpc_request& r)
 {
     r.params = nlohmann::json(nlohmann::json::value_t::discarded);

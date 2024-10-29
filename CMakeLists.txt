@@ -4,6 +4,7 @@ set(EXPORT_COMPILE_COMMANDS ON)
 
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 option(BUILD_TESTS "Build tests" ON)
+option(BUILD_DOCS "Build documentation" ON)
 option(ENABLE_MAINTAINER_MODE "Enable maintainer mode" OFF)
 
 project(
@@ -32,6 +33,31 @@ if(BUILD_TESTS)
     if(NOT TARGET GTest::gtest OR NOT TARGET GTest::gmock)
         message(WARNING "GTest not found, tests will not be built")
         set(BUILD_TESTS OFF)
+    endif()
+endif()
+
+if(BUILD_DOCS)
+    include(FindDoxygen)
+    find_package(Doxygen)
+    if(NOT DOXYGEN_FOUND)
+        message(WARNING "Doxygen not found, documentation will not be built")
+        set(BUILD_DOCS OFF)
+    else()
+        if(TARGET Doxygen::dot)
+            set(HAVE_DOT "YES")
+        else()
+            set(HAVE_DOT "NO")
+        endif()
+        configure_file("${CMAKE_SOURCE_DIR}/cmake/Doxyfile.in" "${CMAKE_BINARY_DIR}/Doxyfile" @ONLY)
+        add_custom_target(
+            doxygen
+            COMMAND Doxygen::doxygen "${CMAKE_BINARY_DIR}/Doxyfile"
+            COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_BINARY_DIR}/docs/html/" "${CMAKE_SOURCE_DIR}/apidocs"
+            WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+            COMMENT "Generating API documentation with Doxygen"
+            DEPENDS ${PROJECT_NAME}
+            VERBATIM
+        )
     endif()
 endif()
 
@@ -184,7 +210,7 @@ install(
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    FILE_SET HEADERS DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}"
+    FILE_SET HEADERS DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/wwa/jsonrpc"
 )
 
 install(
