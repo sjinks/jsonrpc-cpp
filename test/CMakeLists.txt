@@ -3,6 +3,7 @@ add_executable(
     base.cpp
     test_error_handling.cpp
     test_exception.cpp
+    test_extra_param.cpp
     test_instrumentation.cpp
     test_invocation.cpp
     test_notifications.cpp

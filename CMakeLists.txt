@@ -98,7 +98,7 @@ target_sources(
             src/dispatcher.h
             src/exception.h
             src/export.h
-            src/traits.h
+            src/details.h
 )
 
 set_target_properties(

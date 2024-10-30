@@ -18,7 +18,7 @@ void dispatcher::add_internal_method(std::string_view method, handler_t&& handle
     this->d_ptr->add_handler(std::string(method), std::move(handler));
 }
 
-std::string dispatcher::parse_and_process_request(const std::string& request)
+std::string dispatcher::parse_and_process_request(const std::string& request, const nlohmann::json& extra)
 {
     nlohmann::json req;
     try {
@@ -34,12 +34,12 @@ std::string dispatcher::parse_and_process_request(const std::string& request)
         return json.dump();
     }
 
-    return this->process_request(req);
+    return this->process_request(req, extra);
 }
 
-std::string dispatcher::process_request(const nlohmann::json& request)
+std::string dispatcher::process_request(const nlohmann::json& request, const nlohmann::json& extra)
 {
-    const auto json = this->d_ptr->process_request(request);
+    const auto json = this->d_ptr->process_request(request, extra);
     return json.is_discarded() ? std::string{} : json.dump();
 }
 

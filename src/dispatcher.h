@@ -11,6 +11,7 @@
  * convertible to and from `nlohmann::json` values.
  */
 
+#include <cassert>
 #include <functional>
 #include <memory>
 #include <string>
@@ -21,9 +22,9 @@
 
 #include <nlohmann/json.hpp>
 
+#include "details.h"
 #include "exception.h"
 #include "export.h"
-#include "traits.h"
 
 /**
  * @brief Library namespace.
@@ -76,7 +77,19 @@ class dispatcher_private;
 class WWA_JSONRPC_EXPORT dispatcher {
 private:
     friend class dispatcher_private;
-    using handler_t = std::function<nlohmann::json(const nlohmann::json&)>;  ///< Method handler type used internally.
+
+    /**
+     * @brief Method handler type.
+     *
+     * @details This type alias defines a method handler function that takes two JSON parameters:
+     * - `extra`: An additional JSON object that can be used to pass extra information to the handler.
+     * - `params`: A JSON object containing the parameters for the method.
+     *
+     * The handler function returns a JSON object as a result.
+     *
+     * This type alias is used to define the signature of functions that handle method calls in the dispatcher.
+     */
+    using handler_t = std::function<nlohmann::json(const nlohmann::json& extra, const nlohmann::json& params)>;
 
 public:
     /** @brief Class constructor. */
@@ -141,23 +154,38 @@ public:
      * @par
      * If the handler needs to accept a variable number of arguments, it must accept a single `nlohmann::json` argument and parse it as needed, like this:
      * ```cpp
-     * this->m_dispatcher.add("sum", [](const nlohmann::json& params) {
+     * dispatcher.add("sum", [](const nlohmann::json& params) {
      *     std::vector<int> v;
      *     params.get_to(v);
      *     return std::accumulate(v.begin(), v.end(), 0);
      * });
      * ```
+     * @note If the handler accepts a single `nlohmann::json` argument, it will *any* parameters. For example:
+     * ```cpp
+     * void handler(const nlohmann::json& params)
+     * {
+     *     if (params.is_null()) {
+     *         // No parameters
+     *     }
+     *     else if (params.is_array()) {
+     *         // Array of positional parameters
+     *     }
+     *     else if (params.is_object()) {
+     *         // Named parameters
+     *     }
+     * }
+     * ```
      *
      * @par Returning Values from a Handler:
-     * @li The handler can return any value as long as it can be converted to a `nlohmann::json` value. If there is no default conversion available,
+     * 1. The handler can return any value as long as it can be converted to a `nlohmann::json` value. If there is no default conversion available,
      * the handler can either return a `nlohmann::json` value directly,
      * or use [a custom `to_json()` function](https://github.com/nlohmann/json?tab=readme-ov-file#arbitrary-types-conversions).
-     * @li If the handler function returns `void`, it will be automatically converted to `null` in the JSON response.
+     * 2. If the handler function returns `void`, it will be automatically converted to `null` in the JSON response.
      *
      * @par Exception Handling:
-     * @note If the hander function throws an exception (derived from `std::exception`), the exception will be caught, and the error will be returned in the JSON response:
-     * @li json_rpc::exception will be converted to a JSON RPC error object using json_rpc::exception::to_json();
-     * @li other exceptions derived from std::exception will be converted to a JSON RPC error object with code @a -32603 (exception::INTERNAL_ERROR)
+     * If the hander function throws an exception (derived from `std::exception`), the exception will be caught, and the error will be returned in the JSON response:
+     * 1. json_rpc::exception will be converted to a JSON RPC error object using json_rpc::exception::to_json();
+     * 2. other exceptions derived from std::exception will be converted to a JSON RPC error object with code @a -32603 (exception::INTERNAL_ERROR)
      * and the exception message ([what()](https://en.cppreference.com/w/cpp/error/exception/what)) as the error message.
      */
     template<typename F>
@@ -181,39 +209,116 @@ public:
     template<typename C, typename F>
     void add(std::string_view method, F&& f, C instance)
     {
-        using traits             = details::function_traits<std::decay_t<F>>;
-        using ArgsTuple          = typename traits::args_tuple;
-        constexpr auto args_size = std::tuple_size<ArgsTuple>();
+        using traits    = details::function_traits<std::decay_t<F>>;
+        using ArgsTuple = typename traits::args_tuple;
 
-        auto&& closure =
-            this->create_closure<C, F, ArgsTuple>(instance, std::forward<F>(f), std::make_index_sequence<args_size>{});
+        auto&& closure = this->create_closure<C, F, void, ArgsTuple>(instance, std::forward<F>(f));
         this->add_internal_method(method, std::forward<decltype(closure)>(closure));
     }
 
     /**
-    * @brief Parses and processes a JSON RPC request.
-    *
-    * @param request The JSON RPC request as a string.
-    * @return The response serialized into a JSON string.
-    * @retval "" If the request is a [Notification](https://www.jsonrpc.org/specification#notification), the method returns an empty string.
-    *
-    * @details This method performs the following steps:
-    * @li Parses the JSON RPC request.
-    * @li Passes the parsed JSON to the process_request() method.
-    * @li If the request is invalid, returns an appropriate error response.
-    *
-    * If the request cannot be parsed, the method returns a JSON RPC error response with code @a -32700 (exception::PARSE_ERROR).
-    *
-    * Exceptions derived from `std::exception` thrown by the handler function are caught and returned as JSON RPC error responses.
-    * @li `json_rpc::exception` will be converted to a JSON RPC error object using `json_rpc::exception::to_json()`.
-    * @li Other exceptions derived from `std::exception` will be converted to a JSON RPC error object with code `-32603` (exception::INTERNAL_ERROR) and the exception message as the error message.
-    */
-    std::string parse_and_process_request(const std::string& request);
+     * @brief Adds a method handler with an extra parameter.
+     *
+     * @tparam F The type of the handler function.
+     * @param method The name of the method to add the handler for.
+     * @param f The handler function.
+     *
+     * @details This method allows adding a handler function with an additional extra parameter.
+     * The extra parameter can be used to pass additional information to the handler function.
+     * The handler function can accept any number of arguments as long as they can be converted from a `nlohmann::json` value.
+     * The same is true for the return value: it can be any type that can be converted to a `nlohmann::json` value (or `void`).
+     *
+     * This overload is used to add a plain function, a static class method, or a lambda function as a handler.
+     *
+     * @par Sample Usage:
+     * ```cpp
+     * struct extra_params {
+     *     std::string ip;
+     * };
+     * 
+     * NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(extra_params, ip);
+     * 
+     * dispatcher.add_ex("sum", [](const extra_params& extra, const nlohmann::json& params) {
+     *     std::cout << "Invoking sum() method for " << extra.ip << "\n";
+     *     std::vector<int> v;
+     *     params.get_to(v);
+     *     return std::accumulate(v.begin(), v.end(), 0);
+     * });
+     * ```
+     *
+     * See `process_request()` for more details on the extra parameter.
+     *
+     * @see add()
+     */
+    template<typename F>
+    void add_ex(std::string_view method, F&& f)
+    {
+        this->add_ex(method, std::forward<F>(f), nullptr);
+    }
+
+    /**
+     * @brief Adds a method handler with an extra parameter and a class instance.
+     *
+     * @tparam C The type of the class instance.
+     * @tparam F The type of the handler function.
+     * @param method The name of the method to add the handler for.
+     * @param f The handler function.
+     * @param instance The instance of the class to which the function belongs.
+     *
+     * @overload
+     * @details This method allows adding a class method handler with an additional extra parameter.
+     * The extra parameter can be used to pass additional information to the handler function.
+     * The handler function can accept any number of arguments as long as they can be converted from a `nlohmann::json` value.
+     * The same is true for the return value: it can be any type that can be converted to a `nlohmann::json` value (or `void`).
+     *
+     * @see add()
+     */
+    template<typename C, typename F>
+    void add_ex(std::string_view method, F&& f, C instance)
+    {
+        using traits    = details::function_traits<std::decay_t<F>>;
+        using ArgsTuple = typename traits::args_tuple;
+
+        static_assert(
+            std::tuple_size<std::decay_t<ArgsTuple>>::value > 0,
+            "Handler function must accept the `extra` argument. Use `add()` for handlers without an extra parameter."
+        );
+
+        using ExtraType = std::decay_t<std::tuple_element_t<0, ArgsTuple>>;
+        auto&& closure  = this->create_closure<C, F, ExtraType, ArgsTuple>(instance, std::forward<F>(f));
+        this->add_internal_method(method, std::forward<decltype(closure)>(closure));
+    }
+
+    /**
+     * @brief Parses and processes a JSON RPC request.
+     *
+     * @param request The JSON RPC request as a string.
+     * @param extra An optional JSON object that can be passed to the handler function (only for handlers added with add_ex()).
+     * @return The response serialized into a JSON string.
+     * @retval "" If the request is a [Notification](https://www.jsonrpc.org/specification#notification), the method returns an empty string.
+     *
+     * @details This method performs the following steps:
+     * @li Parses the JSON RPC request.
+     * @li Passes the parsed JSON to the `process_request()` method.
+     * @li If the request is invalid, returns an appropriate error response.
+     *
+     * If the request cannot be parsed, the method returns a JSON RPC error response with code @a -32700 (exception::PARSE_ERROR).
+     *
+     * Exceptions derived from `std::exception` thrown by the handler function are caught and returned as JSON RPC error responses.
+     * @li `json_rpc::exception` will be converted to a JSON RPC error object using `json_rpc::exception::to_json()`.
+     * @li Other exceptions derived from `std::exception` will be converted to a JSON RPC error object with code `-32603` (exception::INTERNAL_ERROR)
+     * and the exception message as the error message.
+     *
+     * @see process_request()
+     */
+    std::string
+    parse_and_process_request(const std::string& request, const nlohmann::json& extra = nlohmann::json::object());
 
     /**
      * @brief Processes a JSON RPC request.
      *
      * @param request The JSON RPC request as a `nlohmann::json` object.
+     * @param extra An optional JSON object that can be passed to the handler function (only for handlers added with add_ex()).
      * @return The response serialized into a JSON string.
      * @retval "" If the request is a [Notification](https://www.jsonrpc.org/specification#notification), the method returns an empty string.
      *
@@ -226,9 +331,33 @@ public:
      *
      * Exceptions derived from `std::exception` thrown by the handler function are caught and returned as JSON RPC error responses:
      * @li `json_rpc::exception` will be converted to a JSON RPC error object using `json_rpc::exception::to_json()`.
-     * @li Other exceptions derived from `std::exception` will be converted to a JSON RPC error object with code `-32603` (exception::INTERNAL_ERROR) and the exception message as the error message.
+     * @li Other exceptions derived from `std::exception` will be converted to a JSON RPC error object with code `-32603` (exception::INTERNAL_ERROR)
+     * and the exception message as the error message.
+     *
+     * If @a extra is an object, all extra fields from the JSON RPC request will be passed in the `extra` property of @a extra.
+     * For example, given this request:
+     * ```json
+     * {
+     *     "jsonrpc": "2.0",
+     *     "method": "subtract",
+     *     "params": {"minuend": 42, "subtrahend": 23},
+     *     "id": 1,
+     *     "auth": "secret",
+     *     "user": "admin"
+     * }
+     * ```
+     * and `extra` set to `{"ip": "1.2.3.4"}`, the `extra` parameter passed to the handler will be:
+     * ```json
+     * {
+     *     "ip": "1.2.3.4",
+     *     "extra": {
+     *         "auth": "secret",
+     *         "user": "admin"
+     *     }
+     * }
+     * ```
      */
-    std::string process_request(const nlohmann::json& request);
+    std::string process_request(const nlohmann::json& request, const nlohmann::json& extra = nlohmann::json::object());
 
     /**
      * @brief Invoked when a request is received.
@@ -285,48 +414,12 @@ private:
     void add_internal_method(std::string_view method, handler_t&& handler);
 
     /**
-     * @brief Invokes a handler function with the provided arguments.
-     *
-     * @tparam F The type of the handler function.
-     * @tparam Tuple The type of the arguments tuple.
-     * @param f The handler function.
-     * @param tuple The arguments as a tuple.
-     * @return The result of the handler function converted to a JSON value.
-     * @retval nlohmann::json::null_t If the handler function returns void.
-     *
-     * @details This method invokes the handler function with the arguments passed as a tuple.
-     * It uses the `if constexpr` construct to handle the case when the handler function returns void.
-     *
-     * The `if constexpr` construct allows the method to determine at compile time whether
-     * the handler function returns void. If the return type is void,
-     * the method calls the handler function and returns a JSON null value.
-     * If the return type is not void, the method calls the handler function
-     * and returns the result converted to a JSON value.
-     *
-     * The `std::apply` function is used to unpack the tuple and pass the arguments to the handler function.
-     */
-    template<typename F, typename Tuple>
-    nlohmann::json invoke_function(F&& f, Tuple&& tuple) const
-    {
-        using ReturnType = typename details::function_traits<std::decay_t<F>>::return_type;
-
-        if constexpr (std::is_void_v<ReturnType>) {
-            std::apply(std::forward<F>(f), std::forward<Tuple>(tuple));
-            // NOLINTNEXTLINE(modernize-return-braced-init-list) -- braced init will create a JSON array
-            return nlohmann::json(nullptr);
-        }
-        else {
-            return std::apply(std::forward<F>(f), std::forward<Tuple>(tuple));
-        }
-    }
-
-    /**
      * @brief Creates a closure for invoking a member function with JSON parameters.
      *
      * @tparam C The type of the class instance (can be a pointer or null pointer).
      * @tparam F The type of the member function (if C is not `std::nullptr_t`) or the function.
+     * @tparam Extra The type of the extra parameter that can be passed to the member function (can be `void`, `nlohmann::json`, or convertible from `nlohmann::json`).
      * @tparam Args The type of the arguments tuple.
-     * @tparam Indices The indices of the arguments in the tuple.
      *
      * @param inst The instance of the class (can be a pointer or null pointer).
      * @param f The member function to be invoked.
@@ -348,54 +441,35 @@ private:
      * Compile-time checks ensure that the code is type-safe and that certain conditions are met before the code is compiled.
      * This helps catch potential errors early in the development process and improves the overall robustness of the code.
      */
-    template<typename C, typename F, typename Args, std::size_t... Indices>
-    constexpr auto
-    create_closure(C inst, F&& f, std::index_sequence<Indices...>)  // NOLINT(readability-function-cognitive-complexity)
+    template<typename C, typename F, typename Extra, typename Args>
+    constexpr auto create_closure(C inst, F&& f) const
     {
-        static_assert(std::is_pointer_v<C> || std::is_null_pointer_v<C>);
-        return [func = std::forward<F>(f), inst, this](const nlohmann::json& params) {
-            constexpr auto args_size = std::tuple_size<Args>();
+        static_assert((std::is_pointer_v<C> && std::is_class_v<std::remove_pointer_t<C>>) || std::is_null_pointer_v<C>);
+        return [func = std::forward<F>(f), inst](const nlohmann::json& extra, const nlohmann::json& params) {
+            assert(params.is_array());
+            constexpr auto args_size = std::tuple_size<std::decay_t<Args>>::value;
+            constexpr auto arg_pos   = std::is_void_v<Extra> ? 0 : 1;
 
-            if (params.is_array()) {
-                if constexpr (args_size == 1) {
-                    if constexpr (std::is_same_v<std::decay_t<std::tuple_element_t<0, Args>>, nlohmann::json>) {
-                        auto&& tuple_args = [inst, &params]() constexpr {
-                            (void)inst;
-                            if constexpr (std::is_null_pointer_v<C>) {
-                                return std::make_tuple(params);
-                            }
-                            else {
-                                return std::make_tuple(inst, params);
-                            }
-                        }();
+            if constexpr (args_size == arg_pos + 1) {
+                if constexpr (std::is_same_v<std::decay_t<std::tuple_element_t<arg_pos, Args>>, nlohmann::json>) {
+                    auto&& tuple_args = std::tuple_cat(
+                        details::make_inst_tuple(inst), details::make_extra_tuple<Extra>(extra), std::make_tuple(params)
+                    );
 
-                        return this->invoke_function(func, std::forward<decltype(tuple_args)>(tuple_args));
-                    }
+                    return details::invoke_function(func, std::forward<decltype(tuple_args)>(tuple_args));
                 }
+            }
 
-                if (params.size() == std::tuple_size<Args>()) {
-                    auto&& tuple_args = [inst, &params]() constexpr {
-                        (void)inst;
-                        (void)params;
-                        try {
-                            if constexpr (std::is_null_pointer_v<C>) {
-                                return std::make_tuple(
-                                    params[Indices].get<std::decay_t<std::tuple_element_t<Indices, Args>>>()...
-                                );
-                            }
-                            else {
-                                return std::make_tuple(
-                                    inst, params[Indices].get<std::decay_t<std::tuple_element_t<Indices, Args>>>()...
-                                );
-                            }
-                        }
-                        catch (const nlohmann::json::exception& e) {
-                            throw exception(exception::INVALID_PARAMS, e.what());
-                        }
-                    }();
+            if (params.size() + arg_pos == args_size) {
+                constexpr auto offset = std::is_void_v<Extra> ? 0U : 1U;
+                auto&& tuple_args     = std::tuple_cat(
+                    details::make_inst_tuple(inst), details::make_extra_tuple<Extra>(extra),
+                    details::convert_args<Extra, Args>(
+                        params, details::offset_sequence_t<offset, std::make_index_sequence<args_size - offset>>{}
+                    )
+                );
 
-                    return this->invoke_function(func, std::forward<decltype(tuple_args)>(tuple_args));
-                }
+                return details::invoke_function(func, std::forward<decltype(tuple_args)>(tuple_args));
             }
 
             throw exception(exception::INVALID_PARAMS, err_invalid_params_passed_to_method);
