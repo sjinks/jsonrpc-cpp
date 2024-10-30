@@ -160,7 +160,7 @@ public:
      *     return std::accumulate(v.begin(), v.end(), 0);
      * });
      * ```
-     * @note If the handler accepts a single `nlohmann::json` argument, it will *any* parameters. For example:
+     * @note If the handler accepts a single `nlohmann::json` argument, it will accept *any* parameters. For example:
      * ```cpp
      * void handler(const nlohmann::json& params)
      * {
@@ -184,12 +184,12 @@ public:
      *
      * @par Exception Handling:
      * If the hander function throws an exception (derived from `std::exception`), the exception will be caught, and the error will be returned in the JSON response:
-     * 1. json_rpc::exception will be converted to a JSON RPC error object using json_rpc::exception::to_json();
-     * 2. other exceptions derived from std::exception will be converted to a JSON RPC error object with code @a -32603 (exception::INTERNAL_ERROR)
+     * 1. `json_rpc::exception` will be converted to a JSON RPC error object using json_rpc::exception::to_json();
+     * 2. other exceptions derived from `std::exception` will be converted to a JSON RPC error object with code @a -32603 (`exception::INTERNAL_ERROR`)
      * and the exception message ([what()](https://en.cppreference.com/w/cpp/error/exception/what)) as the error message.
      */
     template<typename F>
-    void add(std::string_view method, F&& f)
+    inline void add(std::string_view method, F&& f)
     {
         this->add(method, std::forward<F>(f), nullptr);
     }
@@ -251,7 +251,7 @@ public:
      * @see add()
      */
     template<typename F>
-    void add_ex(std::string_view method, F&& f)
+    inline void add_ex(std::string_view method, F&& f)
     {
         this->add_ex(method, std::forward<F>(f), nullptr);
     }
@@ -274,7 +274,7 @@ public:
      * @see add()
      */
     template<typename C, typename F>
-    void add_ex(std::string_view method, F&& f, C instance)
+    inline void add_ex(std::string_view method, F&& f, C instance)
     {
         using traits    = details::function_traits<std::decay_t<F>>;
         using ArgsTuple = typename traits::args_tuple;
@@ -293,7 +293,7 @@ public:
      * @brief Parses and processes a JSON RPC request.
      *
      * @param request The JSON RPC request as a string.
-     * @param extra An optional JSON object that can be passed to the handler function (only for handlers added with add_ex()).
+     * @param extra Optional data that can be passed to the handler function (only for handlers added with add_ex()).
      * @return The response serialized into a JSON string.
      * @retval "" If the request is a [Notification](https://www.jsonrpc.org/specification#notification), the method returns an empty string.
      *
@@ -318,7 +318,7 @@ public:
      * @brief Processes a JSON RPC request.
      *
      * @param request The JSON RPC request as a `nlohmann::json` object.
-     * @param extra An optional JSON object that can be passed to the handler function (only for handlers added with add_ex()).
+     * @param extra Optional data that can be passed to the handler function (only for handlers added with add_ex()).
      * @return The response serialized into a JSON string.
      * @retval "" If the request is a [Notification](https://www.jsonrpc.org/specification#notification), the method returns an empty string.
      *
@@ -365,20 +365,27 @@ public:
      * @details This method does nothing by default. It is intended to be overridden in a derived class.
      * For example, it can be used to log requests or increment a counter.
      *
+     * @param extra Additional information that was passed to `process_request()`.
+     * Since `on_request()` is called before the request is parsed, the @a extra` parameter will not contain fields
+     * from the request itself (i.e., @a `extra['extra']` will not be set).
+     *
      * @note In the case of a valid [batch request](https://www.jsonrpc.org/specification#batch),
      * this method is invoked for every request in the batch but **not** for the batch itself.
      * However, if the batch request is invalid (e.g., is empty), this method is invoked once with an empty method name.
      */
-    virtual void on_request();
+    virtual void on_request(const nlohmann::json& extra);
 
     /**
      * @brief Invoked right before the method handler is called.
      *
      * @details This method does nothing by default. It is intended to be overridden in a derived class. For example, it can start a timer to measure the method execution time.
      *
+     * @param extra Additional information that was passed to `process_request()`. If @a extra is a JSON object,
+     * it will contain all extra fields from the JSON RPC request (in @a extra['extra'], see `process_request()`).
+     *
      * @param method The name of the method to be called.
      */
-    virtual void on_method(const std::string& method);
+    virtual void on_method(const std::string& method, const nlohmann::json& extra);
 
     /**
      * @brief Invoked after the method handler is called.
@@ -390,8 +397,11 @@ public:
      * @param code The result code: 0 if the method was processed successfully, or an error code
      * if an exception was thrown (e.g., exception::INTERNAL_ERROR)
      * or the request could not be processed (e.g., exception::INVALID_PARAMS).
+     * @param extra Additional information that was passed to `process_request()`. If the request had already been successfully parsed
+     * before `on_request_processed()` was called, the @a extra parameter will contain all extra fields from the JSON RPC request
+     * (in @a extra['extra'], see `process_request()`).
      */
-    virtual void on_request_processed(const std::string& method, int code);
+    virtual void on_request_processed(const std::string& method, int code, const nlohmann::json& extra);
 
 private:
     /**
@@ -442,7 +452,7 @@ private:
      * This helps catch potential errors early in the development process and improves the overall robustness of the code.
      */
     template<typename C, typename F, typename Extra, typename Args>
-    constexpr auto create_closure(C inst, F&& f) const
+    inline constexpr auto create_closure(C inst, F&& f) const
     {
         static_assert((std::is_pointer_v<C> && std::is_class_v<std::remove_pointer_t<C>>) || std::is_null_pointer_v<C>);
         return [func = std::forward<F>(f), inst](const nlohmann::json& extra, const nlohmann::json& params) {

@@ -102,8 +102,8 @@ jsonrpc_request dispatcher_private::parse_request(const nlohmann::json& request,
 nlohmann::json dispatcher_private::process_batch_request(const nlohmann::json& request, const nlohmann::json& extra)
 {
     if (request.empty()) {
-        this->q_ptr->on_request();
-        this->q_ptr->on_request_processed({}, exception::INVALID_REQUEST);
+        this->q_ptr->on_request(extra);
+        this->q_ptr->on_request_processed({}, exception::INVALID_REQUEST, extra);
         return dispatcher_private::generate_error_response(
             exception(exception::INVALID_REQUEST, err_empty_batch), nlohmann::json(nullptr)
         );
@@ -112,13 +112,13 @@ nlohmann::json dispatcher_private::process_batch_request(const nlohmann::json& r
     auto response = nlohmann::json::array();
     for (const auto& req : request) {
         if (!req.is_object()) {
-            this->q_ptr->on_request();
+            this->q_ptr->on_request(extra);
             const auto r = dispatcher_private::generate_error_response(
                 exception(exception::INVALID_REQUEST, err_not_jsonrpc_2_0_request), nlohmann::json(nullptr)
             );
 
             response.push_back(r);
-            this->q_ptr->on_request_processed({}, exception::INVALID_REQUEST);
+            this->q_ptr->on_request_processed({}, exception::INVALID_REQUEST, extra);
         }
         else if (const auto res = this->process_request(req, extra); !res.is_discarded()) {
             response.push_back(res);
@@ -135,13 +135,14 @@ nlohmann::json dispatcher_private::process_request(const nlohmann::json& request
         return this->process_batch_request(request, extra);
     }
 
-    this->q_ptr->on_request();
+    this->q_ptr->on_request(extra);
     auto request_id = request.contains("id") ? request["id"] : nlohmann::json(nullptr);
     if (!is_valid_request_id(request_id)) {
         request_id = nlohmann::json(nullptr);
     }
 
     std::string method;
+    nlohmann::json extra_data = extra;
     try {
         nlohmann::json extra_fields;
         auto req = dispatcher_private::parse_request(request, extra_fields);
@@ -149,7 +150,6 @@ nlohmann::json dispatcher_private::process_request(const nlohmann::json& request
         method     = req.method;
         request_id = req.id;
 
-        nlohmann::json extra_data = extra;
         if (extra.is_object() && !extra_fields.empty()) {
             extra_data["extra"] = extra_fields;
         }
@@ -163,12 +163,12 @@ nlohmann::json dispatcher_private::process_request(const nlohmann::json& request
         return nlohmann::json(nlohmann::json::value_t::discarded);
     }
     catch (const exception& e) {
-        this->q_ptr->on_request_processed(method, e.code());
+        this->q_ptr->on_request_processed(method, e.code(), extra_data);
         return request_id.is_discarded() ? nlohmann::json(nlohmann::json::value_t::discarded)
                                          : dispatcher_private::generate_error_response(e, request_id);
     }
     catch (const std::exception& e) {
-        this->q_ptr->on_request_processed(method, exception::INTERNAL_ERROR);
+        this->q_ptr->on_request_processed(method, exception::INTERNAL_ERROR, extra_data);
         return request_id.is_discarded() ? nlohmann::json(nlohmann::json::value_t::discarded)
                                          : dispatcher_private::generate_error_response(
                                                exception(exception::INTERNAL_ERROR, e.what()), request_id
@@ -204,9 +204,9 @@ nlohmann::json
 dispatcher_private::invoke(const std::string& method, const nlohmann::json& params, const nlohmann::json& extra)
 {
     if (const auto it = this->m_methods.find(method); it != this->m_methods.end()) {
-        this->q_ptr->on_method(method);
+        this->q_ptr->on_method(method, extra);
         const auto response = it->second(extra, params);
-        this->q_ptr->on_request_processed(method, 0);
+        this->q_ptr->on_request_processed(method, 0, extra);
         return response;
     }
 
