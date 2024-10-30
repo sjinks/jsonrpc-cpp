@@ -5,6 +5,7 @@
 /**
  * @file
  * @brief Implementation of the private members and methods of the JSON RPC dispatcher class.
+ * @internal
  *
  * This file contains the definitions of the private members and methods used by the `dispatcher` class to manage method handlers and process requests.
  * It includes functions for parsing, validating, and invoking JSON RPC requests, as well as generating error responses.
@@ -23,6 +24,7 @@ namespace {
  * Additionally, this function also considers a discarded JSON value as valid.
  *
  * @see https://www.jsonrpc.org/specification#request_object
+ * @internal
  */
 bool is_valid_request_id(const nlohmann::json& id)
 {
@@ -35,6 +37,7 @@ namespace wwa::json_rpc {
 
 /**
  * @brief Deserializes a JSON object into a `jsonrpc_request` structure.
+ * @internal
  *
  * @param j The JSON object to deserialize.
  * @param r The `jsonrpc_request` structure to populate.
@@ -79,45 +82,57 @@ void dispatcher_private::add_handler(std::string&& method, dispatcher::handler_t
     this->m_methods.try_emplace(std::move(method), std::move(handler));
 }
 
-jsonrpc_request dispatcher_private::parse_request(const nlohmann::json& request)
+jsonrpc_request dispatcher_private::parse_request(const nlohmann::json& request, nlohmann::json& extra)
 {
     try {
-        return request.get<jsonrpc_request>();
+        auto req = request.get<jsonrpc_request>();
+        extra    = request;
+        extra.erase("jsonrpc");
+        extra.erase("method");
+        extra.erase("params");
+        extra.erase("id");
+        return req;
     }
     catch (const nlohmann::json::exception& e) {
         throw exception(exception::INVALID_REQUEST, e.what());
     }
 }
 
+// NOLINTNEXTLINE(misc-no-recursion) -- false positive, process_request() will never be called with an object
+nlohmann::json dispatcher_private::process_batch_request(const nlohmann::json& request, const nlohmann::json& extra)
+{
+    if (request.empty()) {
+        this->q_ptr->on_request();
+        this->q_ptr->on_request_processed({}, exception::INVALID_REQUEST);
+        return dispatcher_private::generate_error_response(
+            exception(exception::INVALID_REQUEST, err_empty_batch), nlohmann::json(nullptr)
+        );
+    }
+
+    auto response = nlohmann::json::array();
+    for (const auto& req : request) {
+        if (!req.is_object()) {
+            this->q_ptr->on_request();
+            const auto r = dispatcher_private::generate_error_response(
+                exception(exception::INVALID_REQUEST, err_not_jsonrpc_2_0_request), nlohmann::json(nullptr)
+            );
+
+            response.push_back(r);
+            this->q_ptr->on_request_processed({}, exception::INVALID_REQUEST);
+        }
+        else if (const auto res = this->process_request(req, extra); !res.is_discarded()) {
+            response.push_back(res);
+        }
+    }
+
+    return response.empty() ? nlohmann::json(nlohmann::json::value_t::discarded) : response;
+}
+
 // NOLINTNEXTLINE(misc-no-recursion) -- there is one level of recursion for batch requests
-nlohmann::json dispatcher_private::process_request(const nlohmann::json& request)
+nlohmann::json dispatcher_private::process_request(const nlohmann::json& request, const nlohmann::json& extra)
 {
     if (request.is_array()) {
-        if (request.empty()) {
-            this->q_ptr->on_request();
-            this->q_ptr->on_request_processed({}, exception::INVALID_REQUEST);
-            return dispatcher_private::generate_error_response(
-                exception(exception::INVALID_REQUEST, err_empty_batch), nlohmann::json(nullptr)
-            );
-        }
-
-        auto response = nlohmann::json::array();
-        for (const auto& req : request) {
-            if (!req.is_object()) {
-                this->q_ptr->on_request();
-                const auto r = dispatcher_private::generate_error_response(
-                    exception(exception::INVALID_REQUEST, err_not_jsonrpc_2_0_request), nlohmann::json(nullptr)
-                );
-
-                response.push_back(r);
-                this->q_ptr->on_request_processed({}, exception::INVALID_REQUEST);
-            }
-            else if (const auto res = this->process_request(req); !res.is_discarded()) {
-                response.push_back(res);
-            }
-        }
-
-        return response.empty() ? nlohmann::json(nlohmann::json::value_t::discarded) : response;
+        return this->process_batch_request(request, extra);
     }
 
     this->q_ptr->on_request();
@@ -128,12 +143,18 @@ nlohmann::json dispatcher_private::process_request(const nlohmann::json& request
 
     std::string method;
     try {
-        auto req = dispatcher_private::parse_request(request);
+        nlohmann::json extra_fields;
+        auto req = dispatcher_private::parse_request(request, extra_fields);
         dispatcher_private::validate_request(req);
         method     = req.method;
         request_id = req.id;
 
-        const auto res = this->invoke(method, req.params);
+        nlohmann::json extra_data = extra;
+        if (extra.is_object() && !extra_fields.empty()) {
+            extra_data["extra"] = extra_fields;
+        }
+
+        const auto res = this->invoke(method, req.params, extra_data);
         if (!req.id.is_discarded()) {
             return nlohmann::json({{"jsonrpc", "2.0"}, {"result", res}, {"id", req.id}});
         }
@@ -179,11 +200,12 @@ nlohmann::json dispatcher_private::generate_error_response(const exception& e, c
     return nlohmann::json({{"jsonrpc", "2.0"}, {"error", e.to_json()}, {"id", id}});
 }
 
-nlohmann::json dispatcher_private::invoke(const std::string& method, const nlohmann::json& params)
+nlohmann::json
+dispatcher_private::invoke(const std::string& method, const nlohmann::json& params, const nlohmann::json& extra)
 {
     if (const auto it = this->m_methods.find(method); it != this->m_methods.end()) {
         this->q_ptr->on_method(method);
-        const auto response = it->second(params);
+        const auto response = it->second(extra, params);
         this->q_ptr->on_request_processed(method, 0);
         return response;
     }

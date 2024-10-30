@@ -4,6 +4,7 @@
 /**
  * @file
  * @brief Contains the private implementation details of the JSON RPC dispatcher class.
+ * @internal
  */
 
 #include <functional>
@@ -18,6 +19,7 @@ class exception;
 
 /**
  * @brief Custom hasher for `std::string_view`.
+ * @internal
  *
  * This struct provides a custom hash function for `std::string_view` to be used in unordered containers.
  */
@@ -39,6 +41,7 @@ struct hasher {
 
 /**
  * @brief Represents a JSON RPC request.
+ * @internal
  *
  * This struct holds the components of a JSON RPC request, including the JSON RPC version, method name, parameters, and ID.
  *
@@ -53,6 +56,7 @@ struct jsonrpc_request {
 
 /**
  * @brief Private implementation of the JSON RPC dispatcher class.
+ * @internal
  *
  * This class contains the private members and methods used by the `dispatcher` class to manage method handlers and process requests.
  */
@@ -80,11 +84,14 @@ public:
      * @brief Processes a JSON RPC request.
      *
      * @param request The JSON RPC request as a `nlohmann::json` object.
+     * @param extra The extra parameter to pass to the method handlers.
      * @return The response serialized into a JSON object.
      *
      * @details This method parses the JSON RPC request, validates it, and invokes the appropriate method handler.
+     *
+     * @see dispatcher::process_request()
      */
-    nlohmann::json process_request(const nlohmann::json& request);
+    nlohmann::json process_request(const nlohmann::json& request, const nlohmann::json& extra);
 
     /**
      * @brief Generates an error response.
@@ -107,11 +114,25 @@ private:
      * @brief Parses a JSON RPC request.
      *
      * @param request The JSON RPC request as a `nlohmann::json` object.
+     * @param extra Extra fields extracted from @a request
      * @return The parsed JSON RPC request.
      *
      * @details This method extracts the components of a JSON RPC request from the provided JSON object.
      */
-    static jsonrpc_request parse_request(const nlohmann::json& request);
+    static jsonrpc_request parse_request(const nlohmann::json& request, nlohmann::json& extra);
+
+    /**
+     * @brief Processes a batch request.
+     *
+     * @param request The batch request as a `nlohmann::json` array.
+     * @param extra The extra parameter to pass to the method handlers.
+     * @return The response serialized into a JSON array.
+     *
+     * @details This method processes a batch request by invoking the method handlers for each request in the batch.
+     *
+     * @see dispatcher::process_request()
+     */
+    nlohmann::json process_batch_request(const nlohmann::json& request, const nlohmann::json& extra);
 
     /**
      * @brief Validates a JSON RPC request.
@@ -129,13 +150,14 @@ private:
      *
      * @param method The name of the method to invoke.
      * @param params The parameters for the method.
+     * @param extra The extra parameter to pass to the method handlers.
      * @return The result of the method invocation serialized into a JSON object.
      *
      * @details This method finds the handler for the specified method and invokes it with the provided parameters.
      * @throws exception If the method is not found or the invocation fails.
      * @see exception::METHOD_NOT_FOUND
      */
-    nlohmann::json invoke(const std::string& method, const nlohmann::json& params);
+    nlohmann::json invoke(const std::string& method, const nlohmann::json& params, const nlohmann::json& extra);
 };
 
 }  // namespace wwa::json_rpc
