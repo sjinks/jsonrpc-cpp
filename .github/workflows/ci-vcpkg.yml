@@ -48,7 +48,7 @@ jobs:
 
       - name: Build and test
         run: |
-          cmake --preset debug-vcpkg
+          cmake --preset debug-vcpkg -DBUILD_DOCS=OFF
           cmake --build --preset debug-vcpkg
           ctest --preset debug-vcpkg
 
