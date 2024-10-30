@@ -25,12 +25,12 @@ std::string dispatcher::parse_and_process_request(const std::string& request, co
         req = nlohmann::json::parse(request);
     }
     catch (const nlohmann::json::exception& e) {
-        this->on_request();
+        this->on_request(extra);
         const auto json = dispatcher_private::generate_error_response(
             exception(exception::PARSE_ERROR, e.what()), nlohmann::json(nullptr)
         );
 
-        this->on_request_processed({}, exception::PARSE_ERROR);
+        this->on_request_processed({}, exception::PARSE_ERROR, extra);
         return json.dump();
     }
 
@@ -43,17 +43,17 @@ std::string dispatcher::process_request(const nlohmann::json& request, const nlo
     return json.is_discarded() ? std::string{} : json.dump();
 }
 
-void dispatcher::on_request()
+void dispatcher::on_request(const nlohmann::json&)
 {
     // Do nothing
 }
 
-void dispatcher::on_method(const std::string&)
+void dispatcher::on_method(const std::string&, const nlohmann::json&)
 {
     // Do nothing
 }
 
-void dispatcher::on_request_processed(const std::string&, int)
+void dispatcher::on_request_processed(const std::string&, int, const nlohmann::json&)
 {
     // Do nothing
 }
