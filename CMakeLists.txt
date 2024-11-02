@@ -81,7 +81,24 @@ if(ENABLE_MAINTAINER_MODE)
     )
 endif()
 
-find_package(nlohmann_json REQUIRED)
+find_package(nlohmann_json QUIET)
+set(export_nlohmann_json OFF)
+if(NOT TARGET nlohmann_json::nlohmann_json)
+    message(STATUS "nlohmann_json not found, fetching it from GitHub")
+    include(FetchContent)
+
+    set(JSON_BuildTests OFF CACHE INTERNAL "")
+    set(JSON_ImplicitConversions OFF CACHE INTERNAL "")
+    set(JSON_Install ON CACHE INTERNAL "")
+    set(JSON_MultipleHeaders OFF CACHE INTERNAL "")
+    set(JSON_SystemInclude ON CACHE INTERNAL "")
+
+    # renovate: datasource=github-tags depName=nlohmann/json
+    set(JSON_VERSION "v3.11.2")
+    FetchContent_Declare(json GIT_REPOSITORY https://github.com/nlohmann/json GIT_TAG "${JSON_VERSION}" GIT_SHALLOW ON)
+    FetchContent_MakeAvailable(json)
+    set(export_nlohmann_json ON)
+endif()
 
 add_library(${PROJECT_NAME})
 target_sources(
@@ -204,8 +221,12 @@ endif()
 
 include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
+set(targets ${PROJECT_NAME})
+if(export_nlohmann_json)
+    list(APPEND targets nlohmann_json)
+endif()
 install(
-    TARGETS ${PROJECT_NAME}
+    TARGETS ${targets}
     EXPORT ${PROJECT_NAME}-target
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
