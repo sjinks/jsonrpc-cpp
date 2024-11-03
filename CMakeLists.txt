@@ -94,7 +94,7 @@ if(NOT TARGET nlohmann_json::nlohmann_json)
     set(JSON_SystemInclude ON CACHE INTERNAL "")
 
     # renovate: datasource=github-tags depName=nlohmann/json
-    set(JSON_VERSION "v3.11.2")
+    set(JSON_VERSION "v3.11.3")
     FetchContent_Declare(json GIT_REPOSITORY https://github.com/nlohmann/json GIT_TAG "${JSON_VERSION}" GIT_SHALLOW ON)
     FetchContent_MakeAvailable(json)
     set(export_nlohmann_json ON)
