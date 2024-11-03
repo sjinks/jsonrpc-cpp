@@ -26,9 +26,9 @@
     },
     {
       "customType": "regex",
-      "fileMatch": ["^CMakeLists\\.txt$"],
+      "fileMatch": ["(^|/)CMakeLists\\.txt$"],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)( versioning=(?<versioning>.*?))?( registryUrl=(?<registryUrl>.*?))?\\s+set\\(.*?_VERSION\\s*\"?(?<currentValue>[^ \")]+)\"?\\s"
+        "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)( versioning=(?<versioning>.*?))?( registryUrl=(?<registryUrl>.*?))?\\s+set\\(.*?_VERSION\\s+\"?(?<currentValue>[^ \"\\)]+)\"?\\)\\s"
       ],
       "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
     }
