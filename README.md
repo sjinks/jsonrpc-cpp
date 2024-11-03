@@ -25,7 +25,7 @@ To install the library, follow these steps:
     cd jsonrpc-cpp
     ```
 
-2. Make sure you have [`nlohmann-json`](https://github.com/nlohmann/json) installed.
+2. The library depends on [`nlohmann-json`](https://github.com/nlohmann/json). However, if you do not have it installed, it will be downloaded from the GitHub repository.
 
 3. Build the project using CMake:
     ```sh
