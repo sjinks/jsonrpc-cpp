@@ -13,6 +13,7 @@ target_compile_features(test_jsonrpc PRIVATE cxx_std_20)
 target_link_libraries(test_jsonrpc PRIVATE ${PROJECT_NAME} GTest::gmock_main)
 
 if(ENABLE_MAINTAINER_MODE)
+    target_compile_options(${PROJECT_NAME} PRIVATE ${CMAKE_CXX_FLAGS_MM})
     if(CMAKE_COMPILER_IS_CLANG)
         target_compile_options(test_jsonrpc PRIVATE -Wno-weak-vtables -Wno-global-constructors)
     endif()

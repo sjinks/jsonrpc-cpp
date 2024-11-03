@@ -27,12 +27,33 @@ string(TOLOWER "${CMAKE_CONFIGURATION_TYPES}" CMAKE_CONFIGURATION_TYPES_LOWER)
 string(REGEX MATCH "Clang" CMAKE_COMPILER_IS_CLANG "${CMAKE_CXX_COMPILER_ID}")
 string(REGEX MATCH "GNU" CMAKE_COMPILER_IS_GNU "${CMAKE_CXX_COMPILER_ID}")
 
+include(FetchContent)
+
+set(CMAKE_CXX_FLAGS_MM "")
+if(ENABLE_MAINTAINER_MODE)
+    if(CMAKE_COMPILER_IS_CLANG)
+        set(CMAKE_CXX_FLAGS_MM -Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-pre-c++17-compat -Wno-c++20-compat -Wno-padded -Werror)
+    elseif(CMAKE_COMPILER_IS_GNU)
+        set(CMAKE_CXX_FLAGS_MM -Wall -Wextra -Werror -pedantic)
+    endif()
+endif()
+
 if(BUILD_TESTS)
     include(FindGTest)
     find_package(GTest CONFIG COMPONENTS gtest gmock)
     if(NOT TARGET GTest::gtest OR NOT TARGET GTest::gmock)
-        message(WARNING "GTest not found, tests will not be built")
-        set(BUILD_TESTS OFF)
+        message(STATUS "Google Test not found, fetching it from GitHub")
+        # renovate: datasource=github-tags depName=google/googletest
+        set(GTEST_VERSION "v1.15.0")
+        FetchContent_Declare(
+            googletest 
+            GIT_REPOSITORY https://github.com/google/googletest
+            GIT_TAG "${GTEST_VERSION}"
+            GIT_SHALLOW ON
+        )
+
+        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(googletest)
     endif()
 endif()
 
@@ -74,18 +95,10 @@ if(CMAKE_COMPILER_IS_GNU OR CMAKE_COMPILER_IS_CLANG)
     endif()
 endif()
 
-if(ENABLE_MAINTAINER_MODE)
-    add_compile_options(
-        "$<$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>:-Weverything;-Wno-c++98-compat;-Wno-c++98-compat-pedantic;-Wno-pre-c++17-compat;-Wno-c++20-compat;-Wno-padded;-Werror>"
-        "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wall;-Wextra;-Werror;-pedantic>"
-    )
-endif()
-
-find_package(nlohmann_json QUIET)
+find_package(nlohmann_json 3.11.3 QUIET)
 set(export_nlohmann_json OFF)
 if(NOT TARGET nlohmann_json::nlohmann_json)
     message(STATUS "nlohmann_json not found, fetching it from GitHub")
-    include(FetchContent)
 
     set(JSON_BuildTests OFF CACHE INTERNAL "")
     set(JSON_ImplicitConversions OFF CACHE INTERNAL "")
@@ -143,6 +156,10 @@ target_include_directories(
 
 if(NOT BUILD_SHARED_LIBS)
     target_compile_definitions(${PROJECT_NAME} PUBLIC WWA_JSONRPC_STATIC_DEFINE)
+endif()
+
+if(ENABLE_MAINTAINER_MODE)
+    target_compile_options(${PROJECT_NAME} PRIVATE ${CMAKE_CXX_FLAGS_MM})
 endif()
 
 if(BUILD_TESTS)
