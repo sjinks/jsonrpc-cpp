@@ -46,7 +46,7 @@ if(BUILD_TESTS)
         # renovate: datasource=github-tags depName=google/googletest
         set(GTEST_VERSION "v1.15.2")
         FetchContent_Declare(
-            googletest 
+            googletest
             GIT_REPOSITORY https://github.com/google/googletest
             GIT_TAG "${GTEST_VERSION}"
             GIT_SHALLOW ON
