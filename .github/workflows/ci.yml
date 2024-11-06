@@ -73,7 +73,6 @@ jobs:
           ctest --preset ${{ matrix.preset.name }}
 
   build-ext:
-    needs: prepare
     name: Build and Test (external dependencies)
     runs-on: ubuntu-24.04
     permissions:
