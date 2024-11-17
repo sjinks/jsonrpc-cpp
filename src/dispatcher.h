@@ -452,7 +452,7 @@ private:
      * This helps catch potential errors early in the development process and improves the overall robustness of the code.
      */
     template<typename C, typename F, typename Extra, typename Args>
-    inline constexpr auto create_closure(C inst, F&& f) const
+    constexpr auto create_closure(C inst, F&& f) const
     {
         static_assert((std::is_pointer_v<C> && std::is_class_v<std::remove_pointer_t<C>>) || std::is_null_pointer_v<C>);
         return [func = std::forward<F>(f), inst](const nlohmann::json& extra, const nlohmann::json& params) {
