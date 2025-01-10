@@ -52,7 +52,7 @@ namespace wwa::json_rpc {
  * @see https://www.jsonrpc.org/specification#request_object
  * @see https://github.com/nlohmann/json?tab=readme-ov-file#arbitrary-types-conversions
  */
-// NOLINT(misc-use-anonymous-namespace) -- cannot move to an anonymous namespace because of ADL
+// NOLINTNEXTLINE(misc-use-anonymous-namespace) -- cannot move to an anonymous namespace because of ADL
 static void from_json(const nlohmann::json& j, jsonrpc_request& r)
 {
     r.params = nlohmann::json(nlohmann::json::value_t::discarded);
@@ -102,23 +102,26 @@ jsonrpc_request dispatcher_private::parse_request(const nlohmann::json& request,
 nlohmann::json dispatcher_private::process_batch_request(const nlohmann::json& request, const nlohmann::json& extra)
 {
     if (request.empty()) {
-        this->q_ptr->on_request(extra);
-        this->q_ptr->on_request_processed({}, exception::INVALID_REQUEST, extra);
-        return dispatcher_private::generate_error_response(
+        this->q_ptr->on_request(request, extra);
+
+        const auto r = dispatcher_private::generate_error_response(
             exception(exception::INVALID_REQUEST, err_empty_batch), nlohmann::json(nullptr)
         );
+
+        this->q_ptr->on_request_processed({}, r, extra);
+        return r;
     }
 
     auto response = nlohmann::json::array();
     for (const auto& req : request) {
         if (!req.is_object()) {
-            this->q_ptr->on_request(extra);
+            this->q_ptr->on_request(req, extra);
             const auto r = dispatcher_private::generate_error_response(
                 exception(exception::INVALID_REQUEST, err_not_jsonrpc_2_0_request), nlohmann::json(nullptr)
             );
 
             response.push_back(r);
-            this->q_ptr->on_request_processed({}, exception::INVALID_REQUEST, extra);
+            this->q_ptr->on_request_processed({}, r, extra);
         }
         else if (const auto res = this->process_request(req, extra); !res.is_discarded()) {
             response.push_back(res);
@@ -135,7 +138,7 @@ nlohmann::json dispatcher_private::process_request(const nlohmann::json& request
         return this->process_batch_request(request, extra);
     }
 
-    this->q_ptr->on_request(extra);
+    this->q_ptr->on_request(request, extra);
     auto request_id = request.contains("id") ? request["id"] : nlohmann::json(nullptr);
     if (!is_valid_request_id(request_id)) {
         request_id = nlohmann::json(nullptr);
@@ -156,23 +159,31 @@ nlohmann::json dispatcher_private::process_request(const nlohmann::json& request
 
         const auto res = this->invoke(method, req.params, extra_data);
         if (!req.id.is_discarded()) {
-            return nlohmann::json({{"jsonrpc", "2.0"}, {"result", res}, {"id", req.id}});
+            const auto response = nlohmann::json({{"jsonrpc", "2.0"}, {"result", res}, {"id", req.id}});
+            this->q_ptr->on_request_processed(method, response, extra_data);
+            return response;
         }
 
+        this->q_ptr->on_request_processed(method, nlohmann::json(nlohmann::json::value_t::discarded), extra_data);
         // NOLINTNEXTLINE(modernize-return-braced-init-list) -- braced init will create a JSON array
         return nlohmann::json(nlohmann::json::value_t::discarded);
     }
     catch (const exception& e) {
-        this->q_ptr->on_request_processed(method, e.code(), extra_data);
-        return request_id.is_discarded() ? nlohmann::json(nlohmann::json::value_t::discarded)
-                                         : dispatcher_private::generate_error_response(e, request_id);
+        const auto error_response = dispatcher_private::generate_error_response(
+            e, request_id.is_discarded() ? nlohmann::json(nullptr) : request_id
+        );
+
+        this->q_ptr->on_request_processed(method, error_response, extra_data);
+        return request_id.is_discarded() ? nlohmann::json(nlohmann::json::value_t::discarded) : error_response;
     }
     catch (const std::exception& e) {
-        this->q_ptr->on_request_processed(method, exception::INTERNAL_ERROR, extra_data);
-        return request_id.is_discarded() ? nlohmann::json(nlohmann::json::value_t::discarded)
-                                         : dispatcher_private::generate_error_response(
-                                               exception(exception::INTERNAL_ERROR, e.what()), request_id
-                                           );
+        const auto error_response = dispatcher_private::generate_error_response(
+            exception(exception::INTERNAL_ERROR, e.what()),
+            request_id.is_discarded() ? nlohmann::json(nullptr) : request_id
+        );
+
+        this->q_ptr->on_request_processed(method, error_response, extra_data);
+        return request_id.is_discarded() ? nlohmann::json(nlohmann::json::value_t::discarded) : error_response;
     }
 }
 
@@ -206,7 +217,6 @@ dispatcher_private::invoke(const std::string& method, const nlohmann::json& para
     if (const auto it = this->m_methods.find(method); it != this->m_methods.end()) {
         this->q_ptr->on_method(method, extra);
         const auto response = it->second(extra, params);
-        this->q_ptr->on_request_processed(method, 0, extra);
         return response;
     }
 

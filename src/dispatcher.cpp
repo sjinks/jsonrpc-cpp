@@ -4,6 +4,7 @@
  */
 
 #include "dispatcher.h"
+#include <nlohmann/json_fwd.hpp>
 #include "dispatcher_p.h"
 #include "exception.h"
 
@@ -25,25 +26,25 @@ std::string dispatcher::parse_and_process_request(const std::string& request, co
         req = nlohmann::json::parse(request);
     }
     catch (const nlohmann::json::exception& e) {
-        this->on_request(extra);
+        this->on_request(nlohmann::json(nlohmann::json::value_t::discarded), extra);
         const auto json = dispatcher_private::generate_error_response(
             exception(exception::PARSE_ERROR, e.what()), nlohmann::json(nullptr)
         );
 
-        this->on_request_processed({}, exception::PARSE_ERROR, extra);
+        this->on_request_processed({}, json, extra);
         return json.dump();
     }
 
-    return this->process_request(req, extra);
+    const auto response = this->process_request(req, extra);
+    return response.is_discarded() ? std::string{} : response.dump();
 }
 
-std::string dispatcher::process_request(const nlohmann::json& request, const nlohmann::json& extra)
+nlohmann::json dispatcher::process_request(const nlohmann::json& request, const nlohmann::json& extra)
 {
-    const auto json = this->d_ptr->process_request(request, extra);
-    return json.is_discarded() ? std::string{} : json.dump();
+    return this->d_ptr->process_request(request, extra);
 }
 
-void dispatcher::on_request(const nlohmann::json&)
+void dispatcher::on_request(const nlohmann::json&, const nlohmann::json&)
 {
     // Do nothing
 }
@@ -53,9 +54,24 @@ void dispatcher::on_method(const std::string&, const nlohmann::json&)
     // Do nothing
 }
 
-void dispatcher::on_request_processed(const std::string&, int, const nlohmann::json&)
+void dispatcher::on_request_processed(const std::string&, const nlohmann::json&, const nlohmann::json&)
 {
     // Do nothing
+}
+
+bool is_error_response(const nlohmann::json& response)
+{
+    return response.is_object() && response.contains("error") && response["error"].is_object();
+}
+
+int get_error_code(const nlohmann::json& response)
+{
+    return response["error"]["code"];
+}
+
+std::string get_error_message(const nlohmann::json& response)
+{
+    return response["error"]["message"];
 }
 
 }  // namespace wwa::json_rpc

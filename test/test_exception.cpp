@@ -2,7 +2,7 @@
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
-#include "../src/exception.h"
+#include "exception.h"
 
 using namespace std::string_view_literals;
 
