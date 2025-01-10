@@ -189,7 +189,7 @@ public:
      * and the exception message ([what()](https://en.cppreference.com/w/cpp/error/exception/what)) as the error message.
      */
     template<typename F>
-    inline void add(std::string_view method, F&& f)
+    void add(std::string_view method, F&& f)
     {
         this->add(method, std::forward<F>(f), nullptr);
     }
@@ -235,9 +235,9 @@ public:
      * struct extra_params {
      *     std::string ip;
      * };
-     * 
+     *
      * NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(extra_params, ip);
-     * 
+     *
      * dispatcher.add_ex("sum", [](const extra_params& extra, const nlohmann::json& params) {
      *     std::cout << "Invoking sum() method for " << extra.ip << "\n";
      *     std::vector<int> v;
@@ -251,7 +251,7 @@ public:
      * @see add()
      */
     template<typename F>
-    inline void add_ex(std::string_view method, F&& f)
+    void add_ex(std::string_view method, F&& f)
     {
         this->add_ex(method, std::forward<F>(f), nullptr);
     }
@@ -274,7 +274,7 @@ public:
      * @see add()
      */
     template<typename C, typename F>
-    inline void add_ex(std::string_view method, F&& f, C instance)
+    void add_ex(std::string_view method, F&& f, C instance)
     {
         using traits    = details::function_traits<std::decay_t<F>>;
         using ArgsTuple = typename traits::args_tuple;
@@ -357,7 +357,8 @@ public:
      * }
      * ```
      */
-    std::string process_request(const nlohmann::json& request, const nlohmann::json& extra = nlohmann::json::object());
+    nlohmann::json
+    process_request(const nlohmann::json& request, const nlohmann::json& extra = nlohmann::json::object());
 
     /**
      * @brief Invoked when a request is received.
@@ -365,25 +366,24 @@ public:
      * @details This method does nothing by default. It is intended to be overridden in a derived class.
      * For example, it can be used to log requests or increment a counter.
      *
+     * @param request The raw request; it may or may not be a valid JSON RPC request.
      * @param extra Additional information that was passed to `process_request()`.
      * Since `on_request()` is called before the request is parsed, the @a extra` parameter will not contain fields
      * from the request itself (i.e., @a `extra['extra']` will not be set).
-     *
-     * @note In the case of a valid [batch request](https://www.jsonrpc.org/specification#batch),
-     * this method is invoked for every request in the batch but **not** for the batch itself.
-     * However, if the batch request is invalid (e.g., is empty), this method is invoked once with an empty method name.
      */
-    virtual void on_request(const nlohmann::json& extra);
+    virtual void on_request(const nlohmann::json& request, const nlohmann::json& extra);
 
     /**
      * @brief Invoked right before the method handler is called.
      *
      * @details This method does nothing by default. It is intended to be overridden in a derived class. For example, it can start a timer to measure the method execution time.
      *
+     * @param method The name of the method to be called.
      * @param extra Additional information that was passed to `process_request()`. If @a extra is a JSON object,
      * it will contain all extra fields from the JSON RPC request (in @a extra['extra'], see `process_request()`).
      *
-     * @param method The name of the method to be called.
+     * @note In the case of a valid [batch request](https://www.jsonrpc.org/specification#batch),
+     * this method is invoked for every request in the batch but **not** for the batch itself.
      */
     virtual void on_method(const std::string& method, const nlohmann::json& extra);
 
@@ -394,14 +394,17 @@ public:
      * For example, it can be used to stop the timer started in on_method().
      *
      * @param method The name of the called method. It can be empty for an invalid batch request.
-     * @param code The result code: 0 if the method was processed successfully, or an error code
-     * if an exception was thrown (e.g., exception::INTERNAL_ERROR)
-     * or the request could not be processed (e.g., exception::INVALID_PARAMS).
+     * @param response The response.
      * @param extra Additional information that was passed to `process_request()`. If the request had already been successfully parsed
      * before `on_request_processed()` was called, the @a extra parameter will contain all extra fields from the JSON RPC request
      * (in @a extra['extra'], see `process_request()`).
+     *
+     * @note In the case of a valid [batch request](https://www.jsonrpc.org/specification#batch),
+     * this method is invoked for every request in the batch but **not** for the batch itself.
+     * However, if the batch request is invalid (e.g., is empty), this method is invoked once with an empty method name.
      */
-    virtual void on_request_processed(const std::string& method, int code, const nlohmann::json& extra);
+    virtual void
+    on_request_processed(const std::string& method, const nlohmann::json& response, const nlohmann::json& extra);
 
 private:
     /**
@@ -486,6 +489,30 @@ private:
         };
     }
 };
+
+/**
+ * @brief Checks whether @a response is an error response.
+ *
+ * @param response JSON RPC response.
+ * @return Whether the response is an error response.
+ */
+bool is_error_response(const nlohmann::json& response);
+
+/**
+ * @brief Gets the error code from an error response.
+ *
+ * @param response JSON RPC error response.
+ * @return The error code.
+ */
+int get_error_code(const nlohmann::json& response);
+
+/**
+ * @brief Gets the error message from an error response.
+ *
+ * @param response JSON RPC error response.
+ * @return The error message.
+ */
+std::string get_error_message(const nlohmann::json& response);
 
 }  // namespace wwa::json_rpc
 

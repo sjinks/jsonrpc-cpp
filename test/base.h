@@ -3,7 +3,7 @@
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
-#include "../src/dispatcher.h"
+#include "dispatcher.h"
 
 struct subtract_params {
     int minuend;

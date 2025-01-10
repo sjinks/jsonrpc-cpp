@@ -5,7 +5,7 @@
 #include <nlohmann/json.hpp>
 #include <nlohmann/json_fwd.hpp>
 
-#include "../src/dispatcher.h"
+#include "dispatcher.h"
 #include "exception.h"
 
 class ExtraParamTest : public ::testing::Test {
@@ -54,7 +54,7 @@ TEST_F(ExtraParamTest, TestClosure)
     extra.ip = expected_ip;
 
     const auto expected = nlohmann::json({{"jsonrpc", "2.0"}, {"id", 1}, {"result", nullptr}});
-    const auto response = nlohmann::json::parse(this->dispatcher().process_request(request, extra));
+    const auto response = this->dispatcher().process_request(request, extra);
     EXPECT_EQ(response, expected);
 }
 
@@ -96,7 +96,7 @@ TEST_F(ExtraParamTest, TestMethod)
     extra.ip = expected_ip;
 
     const auto expected = nlohmann::json({{"jsonrpc", "2.0"}, {"id", 1}, {"result", nullptr}});
-    const auto response = nlohmann::json::parse(this->dispatcher().process_request(request, extra));
+    const auto response = this->dispatcher().process_request(request, extra);
     EXPECT_EQ(response, expected);
 }
 
@@ -118,7 +118,7 @@ TEST_F(ExtraParamTest, TestClosureWithoutExtraFields)
     extra.ip = expected_ip;
 
     const auto expected = nlohmann::json({{"jsonrpc", "2.0"}, {"id", 1}, {"result", nullptr}});
-    const auto response = nlohmann::json::parse(this->dispatcher().process_request(request, extra));
+    const auto response = this->dispatcher().process_request(request, extra);
     EXPECT_EQ(response, expected);
 }
 
@@ -141,7 +141,7 @@ TEST_F(ExtraParamTest, TestClosureWithExtraJson)
 
     const auto extra    = nlohmann::json({{"ip", expected_ip}});
     const auto expected = nlohmann::json({{"jsonrpc", "2.0"}, {"id", 1}, {"result", nullptr}});
-    const auto response = nlohmann::json::parse(this->dispatcher().process_request(request, extra));
+    const auto response = this->dispatcher().process_request(request, extra);
     EXPECT_EQ(response, expected);
 }
 
@@ -153,7 +153,7 @@ TEST_F(ExtraParamTest, TestClosureWithExtraJsonNull)
     this->dispatcher().add_ex("test", [](const nlohmann::json& extra) { EXPECT_TRUE(extra.is_null()); });
 
     const auto expected = nlohmann::json({{"jsonrpc", "2.0"}, {"id", 1}, {"result", nullptr}});
-    const auto response = nlohmann::json::parse(this->dispatcher().process_request(request, nlohmann::json()));
+    const auto response = this->dispatcher().process_request(request, nlohmann::json());
     EXPECT_EQ(response, expected);
 }
 
@@ -174,6 +174,6 @@ TEST_F(ExtraParamTest, TestException)
     );
 
     const auto extra    = nlohmann::json({{"unexpected", "data"}});
-    const auto response = nlohmann::json::parse(this->dispatcher().process_request(request, extra));
+    const auto response = this->dispatcher().process_request(request, extra);
     EXPECT_EQ(response, expected);
 }

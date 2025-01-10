@@ -13,8 +13,7 @@ class MethodInvocationTest : public BaseDispatcherTest,
 TEST_P(MethodInvocationTest, TestMethodCalls)
 {
     const auto& [input, expected] = GetParam();
-    const auto response           = this->dispatcher().process_request(input);
-    const auto actual             = nlohmann::json::parse(response);
+    const auto actual             = this->dispatcher().process_request(input);
 
     EXPECT_EQ(actual, expected);
 }
