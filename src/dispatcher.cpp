@@ -66,12 +66,12 @@ bool is_error_response(const nlohmann::json& response)
 
 int get_error_code(const nlohmann::json& response)
 {
-    return response["error"]["code"];
+    return response["error"].value("code", 0);
 }
 
 std::string get_error_message(const nlohmann::json& response)
 {
-    return response["error"]["message"];
+    return response["error"].value("message", "");
 }
 
 }  // namespace wwa::json_rpc
