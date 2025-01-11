@@ -32,7 +32,7 @@ jobs:
         uses: ./.github/actions/install-dependencies
 
       - name: Install Doxygen
-        uses: ssciwr/doxygen-install@a26521079bb248eabda74a87ff7148179a85bbbe # v1.6.2
+        uses: ssciwr/doxygen-install@527824132256e685f03ec80c0851fe79937eb1d6 # v1.6.3
 
       - name: Generate API Docs
         run: |
