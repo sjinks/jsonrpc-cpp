@@ -34,6 +34,7 @@
 namespace wwa::json_rpc {
 
 class dispatcher_private;
+struct jsonrpc_request;
 
 /**
  * @brief A class that manages JSON RPC method handlers and processes JSON RPC requests.
@@ -352,7 +353,7 @@ protected:
     /**
      * @brief Processes a batch request.
      *
-     * @param request The batch request as a `nlohmann::json` array.
+     * @param request The batch request as a JSON array.
      * @param data Additional information to pass to the method handlers as a part of the context.
      * @param unique_id The unique request ID.
      * @return The response as a JSON array.
@@ -361,6 +362,15 @@ protected:
      */
     virtual nlohmann::json
     process_batch_request(const nlohmann::json& request, const std::any& data, std::uint64_t unique_id);
+
+    /**
+     * @brief Invoked after the request has been parsed.
+     *
+     * @param request The parsed request.
+     * @param data Additional information to pass to the method handlers as a part of the context.
+     * @param unique_id The unique request ID.
+     */
+    virtual void request_parsed(const jsonrpc_request& request, const std::any& data, std::uint64_t unique_id);
 
     /**
      * @brief Invokes a method handler.

@@ -91,6 +91,11 @@ dispatcher::process_batch_request(const nlohmann::json& request, const std::any&
     return response.empty() ? nlohmann::json(nlohmann::json::value_t::discarded) : response;
 }
 
+void dispatcher::request_parsed(const jsonrpc_request&, const std::any&, std::uint64_t)
+{
+    // Do nothing
+}
+
 nlohmann::json dispatcher::invoke(
     const std::string& method, const nlohmann::json& params, const dispatcher::context_t& ctx, std::uint64_t
 )
@@ -102,6 +107,9 @@ nlohmann::json dispatcher::invoke(
     throw method_not_found_exception();
 }
 
-void dispatcher::request_failed(const nlohmann::json&, const std::exception*, bool, std::uint64_t) {}
+void dispatcher::request_failed(const nlohmann::json&, const std::exception*, bool, std::uint64_t)
+{
+    // Do nothing
+}
 
 }  // namespace wwa::json_rpc
