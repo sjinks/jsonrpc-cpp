@@ -39,7 +39,8 @@ dispatcher::do_process_request(const nlohmann::json& request, const std::any& da
     bool is_discarded = false;
     try {
         const auto req = jsonrpc_request::from_json(request);
-        is_discarded   = req.id.is_discarded();
+        this->request_parsed(req, data, unique_id);
+        is_discarded = req.id.is_discarded();
 
         const dispatcher::context_t ctx = std::make_pair(data, req.extra);
         const auto res                  = this->invoke(req.method, req.params, ctx, unique_id);
