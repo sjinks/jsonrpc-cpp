@@ -12,10 +12,9 @@ class NotificationsTest : public BaseDispatcherTest,
 TEST_P(NotificationsTest, TestNotifications)
 {
     const auto& input = GetParam();
-    const std::string expected{};
-    const auto actual = this->dispatcher().parse_and_process_request(input);
+    const auto actual = this->dispatcher().process_request(nlohmann::json::parse(input));
 
-    EXPECT_EQ(actual, expected);
+    EXPECT_TRUE(actual.is_discarded());
 }
 
 // clang-format off

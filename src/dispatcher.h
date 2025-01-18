@@ -11,6 +11,7 @@
  * convertible to and from `nlohmann::json` values.
  */
 
+#include <any>
 #include <cassert>
 #include <functional>
 #include <memory>
@@ -49,9 +50,6 @@ class dispatcher_private;
  * - Invoking method handlers with the appropriate arguments.
  * - Handling exceptions thrown by method handlers and returning appropriate JSON RPC error responses.
  *
- * The dispatcher class also provides virtual methods that can be overridden in derived classes to customize
- * the behavior when a request is received, before a method handler is called, and after a method handler is called.
- *
  * @par Example Usage:
  * ```cpp
  * dispatcher d;
@@ -61,8 +59,8 @@ class dispatcher_private;
  *     return minuend - subtrahend;
  * });
  *
- * std::string request = R"({"jsonrpc": "2.0", "method": "subtract", "params": {"minuend": 42, "subtrahend": 23}, "id": 1})";
- * std::string response = d.parse_and_process_request(request);
+ * const auto request  = R"({"jsonrpc": "2.0", "method": "subtract", "params": {"minuend": 42, "subtrahend": 23}, "id": 1})";
+ * const auto response = d.process_request(nlohmann::json::parse(request)).dump();
  * ```
  *
  * @par Adding Method Handlers:
@@ -75,21 +73,32 @@ class dispatcher_private;
  * an appropriate JSON RPC error response will be returned.
  */
 class WWA_JSONRPC_EXPORT dispatcher {
+public:
+    /**
+     * @brief Optional context data for method handlers.
+     *
+     * @details This type alias defines a context data type that can be passed to method handlers.
+     * The context data is a pair of two values:
+     *   - The first value is an `std::any` object that is passed to the `process_request()` method;
+     *   - The second value is a `nlohmann::json` object that contains additional fields extracted from the JSON RPC request.
+     */
+    using context_t = std::pair<std::any, nlohmann::json>;
+
 private:
     friend class dispatcher_private;
 
     /**
      * @brief Method handler type.
      *
-     * @details This type alias defines a method handler function that takes two JSON parameters:
-     * - `extra`: An additional JSON object that can be used to pass extra information to the handler.
+     * @details This type alias defines a method handler function that takes two parameters:
+     * - `ctx`: An additional parameter that can be used to pass additional information to the handler.
      * - `params`: A JSON object containing the parameters for the method.
      *
      * The handler function returns a JSON object as a result.
      *
      * This type alias is used to define the signature of functions that handle method calls in the dispatcher.
      */
-    using handler_t = std::function<nlohmann::json(const nlohmann::json& extra, const nlohmann::json& params)>;
+    using handler_t = std::function<nlohmann::json(const context_t& ctx, const nlohmann::json& params)>;
 
 public:
     /** @brief Class constructor. */
@@ -116,7 +125,7 @@ public:
 
     /**
      * @brief Adds a method handler @a f for the method @a method.
-     * @tparam F Type of the handler function (@a f).
+     * @tparam F Type of the handler function @a f.
      * @param method The name of the method to add the handler for.
      * @param f The handler function.
      * @details This overload is used to add a plain function, a static class method, or a lambda function as a handler.
@@ -212,19 +221,19 @@ public:
         using traits    = details::function_traits<std::decay_t<F>>;
         using ArgsTuple = typename traits::args_tuple;
 
-        auto&& closure = this->create_closure<C, F, void, ArgsTuple>(instance, std::forward<F>(f));
+        const auto&& closure = this->create_closure<C, F, void, ArgsTuple>(instance, std::forward<F>(f));
         this->add_internal_method(method, std::forward<decltype(closure)>(closure));
     }
 
     /**
-     * @brief Adds a method handler with an extra parameter.
+     * @brief Adds a method handler with a context parameter.
      *
      * @tparam F The type of the handler function.
      * @param method The name of the method to add the handler for.
      * @param f The handler function.
      *
-     * @details This method allows adding a handler function with an additional extra parameter.
-     * The extra parameter can be used to pass additional information to the handler function.
+     * @details This method allows adding a handler function with an additional context parameter.
+     * The context parameter can be used to pass additional information to the handler function.
      * The handler function can accept any number of arguments as long as they can be converted from a `nlohmann::json` value.
      * The same is true for the return value: it can be any type that can be converted to a `nlohmann::json` value (or `void`).
      *
@@ -236,10 +245,8 @@ public:
      *     std::string ip;
      * };
      *
-     * NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(extra_params, ip);
-     *
-     * dispatcher.add_ex("sum", [](const extra_params& extra, const nlohmann::json& params) {
-     *     std::cout << "Invoking sum() method for " << extra.ip << "\n";
+     * dispatcher.add_ex("sum", [](const std::any& extra, const nlohmann::json& params) {
+     *     std::cout << "Invoking sum() method for " << std::any_cast<extra_params>(extra).ip << "\n";
      *     std::vector<int> v;
      *     params.get_to(v);
      *     return std::accumulate(v.begin(), v.end(), 0);
@@ -257,7 +264,7 @@ public:
     }
 
     /**
-     * @brief Adds a method handler with an extra parameter and a class instance.
+     * @brief Adds a method handler with a context parameter and a class instance.
      *
      * @tparam C The type of the class instance.
      * @tparam F The type of the handler function.
@@ -266,8 +273,8 @@ public:
      * @param instance The instance of the class to which the function belongs.
      *
      * @overload
-     * @details This method allows adding a class method handler with an additional extra parameter.
-     * The extra parameter can be used to pass additional information to the handler function.
+     * @details This method allows adding a class method handler with an additional context parameter.
+     * The context parameter can be used to pass additional information to the handler function.
      * The handler function can accept any number of arguments as long as they can be converted from a `nlohmann::json` value.
      * The same is true for the return value: it can be any type that can be converted to a `nlohmann::json` value (or `void`).
      *
@@ -281,60 +288,33 @@ public:
 
         static_assert(
             std::tuple_size<std::decay_t<ArgsTuple>>::value > 0,
-            "Handler function must accept the `extra` argument. Use `add()` for handlers without an extra parameter."
+            "Handler function must accept the `context` argument. Use `add()` for handlers without the `context` "
+            "argument."
         );
 
-        using ExtraType = std::decay_t<std::tuple_element_t<0, ArgsTuple>>;
-        auto&& closure  = this->create_closure<C, F, ExtraType, ArgsTuple>(instance, std::forward<F>(f));
+        const auto&& closure = this->create_closure<C, F, context_t, ArgsTuple>(instance, std::forward<F>(f));
         this->add_internal_method(method, std::forward<decltype(closure)>(closure));
     }
-
-    /**
-     * @brief Parses and processes a JSON RPC request.
-     *
-     * @param request The JSON RPC request as a string.
-     * @param extra Optional data that can be passed to the handler function (only for handlers added with add_ex()).
-     * @return The response serialized into a JSON string.
-     * @retval "" If the request is a [Notification](https://www.jsonrpc.org/specification#notification), the method returns an empty string.
-     *
-     * @details This method performs the following steps:
-     * @li Parses the JSON RPC request.
-     * @li Passes the parsed JSON to the `process_request()` method.
-     * @li If the request is invalid, returns an appropriate error response.
-     *
-     * If the request cannot be parsed, the method returns a JSON RPC error response with code @a -32700 (exception::PARSE_ERROR).
-     *
-     * Exceptions derived from `std::exception` thrown by the handler function are caught and returned as JSON RPC error responses.
-     * @li `json_rpc::exception` will be converted to a JSON RPC error object using `json_rpc::exception::to_json()`.
-     * @li Other exceptions derived from `std::exception` will be converted to a JSON RPC error object with code `-32603` (exception::INTERNAL_ERROR)
-     * and the exception message as the error message.
-     *
-     * @see process_request()
-     */
-    std::string
-    parse_and_process_request(const std::string& request, const nlohmann::json& extra = nlohmann::json::object());
 
     /**
      * @brief Processes a JSON RPC request.
      *
      * @param request The JSON RPC request as a `nlohmann::json` object.
-     * @param extra Optional data that can be passed to the handler function (only for handlers added with add_ex()).
-     * @return The response serialized into a JSON string.
-     * @retval "" If the request is a [Notification](https://www.jsonrpc.org/specification#notification), the method returns an empty string.
+     * @param data Optional data that can be passed to the handler function (only for handlers added with @a add_ex()).
+     * @return The response as a `nlohmann::json` object. If the request is a [Notification](https://www.jsonrpc.org/specification#notification),
+     * it will be of the [discarded_t](https://json.nlohmann.me/api/basic_json/is_discarded/) type.
      *
-     * @details This method performs the following steps:
-     * @li Parses the JSON RPC request.
-     * @li Passes the parsed JSON to the appropriate handler function.
-     * @li If the request is invalid, returns an appropriate error response.
-     *
-     * If the request cannot be parsed, the method returns a JSON RPC error response with code `-32700` (exception::PARSE_ERROR).
+     * @details This method processes a JSON RPC request.
      *
      * Exceptions derived from `std::exception` thrown by the handler function are caught and returned as JSON RPC error responses:
      * @li `json_rpc::exception` will be converted to a JSON RPC error object using `json_rpc::exception::to_json()`.
      * @li Other exceptions derived from `std::exception` will be converted to a JSON RPC error object with code `-32603` (exception::INTERNAL_ERROR)
      * and the exception message as the error message.
      *
-     * If @a extra is an object, all extra fields from the JSON RPC request will be passed in the `extra` property of @a extra.
+     * For the handlers that accept the `context` parameter, this method will construct the context as follows:
+     * 1. The `data` parameter will be passed as the first element of the `context` tuple.
+     * 2. The extra fields from the JSON RPC request will be passed as the second element of the `context` tuple as a JSON object.
+     *
      * For example, given this request:
      * ```json
      * {
@@ -346,65 +326,42 @@ public:
      *     "user": "admin"
      * }
      * ```
-     * and `extra` set to `{"ip": "1.2.3.4"}`, the `extra` parameter passed to the handler will be:
-     * ```json
-     * {
-     *     "ip": "1.2.3.4",
-     *     "extra": {
-     *         "auth": "secret",
-     *         "user": "admin"
-     *     }
-     * }
-     * ```
+     * and `data` set to `std::string("some_data")`, the `context` parameter passed to the handler will be a pair of values:
+     *   - `std::string("some_data")` as `std::any`;
+     *   - `nlohmann::json` representing the object `{ "auth": "secret", "user": "admin" }`.
      */
-    nlohmann::json
-    process_request(const nlohmann::json& request, const nlohmann::json& extra = nlohmann::json::object());
+    nlohmann::json process_request(const nlohmann::json& request, const std::any& data = {});
+
+protected:
+    virtual nlohmann::json do_process_request(const nlohmann::json& request, const std::any& data, bool is_batch);
 
     /**
-     * @brief Invoked when a request is received.
+     * @brief Processes a batch request.
      *
-     * @details This method does nothing by default. It is intended to be overridden in a derived class.
-     * For example, it can be used to log requests or increment a counter.
+     * @param request The batch request as a `nlohmann::json` array.
+     * @param data Additional information to pass to the method handlers as a part of the context.
+     * @return The response as a JSON array.
      *
-     * @param request The raw request; it may or may not be a valid JSON RPC request.
-     * @param extra Additional information that was passed to `process_request()`.
-     * Since `on_request()` is called before the request is parsed, the @a extra` parameter will not contain fields
-     * from the request itself (i.e., @a `extra['extra']` will not be set).
+     * @details This method processes a batch request by invoking the method handlers for each request in the batch.
      */
-    virtual void on_request(const nlohmann::json& request, const nlohmann::json& extra);
+    virtual nlohmann::json process_batch_request(const nlohmann::json& request, const std::any& data);
 
     /**
-     * @brief Invoked right before the method handler is called.
+     * @brief Invokes a method handler.
      *
-     * @details This method does nothing by default. It is intended to be overridden in a derived class. For example, it can start a timer to measure the method execution time.
+     * @param method The name of the method to invoke.
+     * @param params The parameters for the method.
+     * @param ctx The context to pass to the method handlers.
+     * @return The result of the method invocation as a JSON object.
      *
-     * @param method The name of the method to be called.
-     * @param extra Additional information that was passed to `process_request()`. If @a extra is a JSON object,
-     * it will contain all extra fields from the JSON RPC request (in @a extra['extra'], see `process_request()`).
-     *
-     * @note In the case of a valid [batch request](https://www.jsonrpc.org/specification#batch),
-     * this method is invoked for every request in the batch but **not** for the batch itself.
+     * @details This method finds the handler for the specified method and invokes it with the provided parameters.
+     * @throws exception If the method is not found or the invocation fails.
+     * @see exception::METHOD_NOT_FOUND
      */
-    virtual void on_method(const std::string& method, const nlohmann::json& extra);
+    virtual nlohmann::json
+    invoke(const std::string& method, const nlohmann::json& params, const dispatcher::context_t& ctx);
 
-    /**
-     * @brief Invoked after the method handler is called.
-     *
-     * @details This method does nothing by default. It is intended to be overridden in a derived class.
-     * For example, it can be used to stop the timer started in on_method().
-     *
-     * @param method The name of the called method. It can be empty for an invalid batch request.
-     * @param response The response.
-     * @param extra Additional information that was passed to `process_request()`. If the request had already been successfully parsed
-     * before `on_request_processed()` was called, the @a extra parameter will contain all extra fields from the JSON RPC request
-     * (in @a extra['extra'], see `process_request()`).
-     *
-     * @note In the case of a valid [batch request](https://www.jsonrpc.org/specification#batch),
-     * this method is invoked for every request in the batch but **not** for the batch itself.
-     * However, if the batch request is invalid (e.g., is empty), this method is invoked once with an empty method name.
-     */
-    virtual void
-    on_request_processed(const std::string& method, const nlohmann::json& response, const nlohmann::json& extra);
+    virtual void request_failed(const nlohmann::json& request_id, const std::exception* e, bool is_batch);
 
 private:
     /**
@@ -431,7 +388,7 @@ private:
      *
      * @tparam C The type of the class instance (can be a pointer or null pointer).
      * @tparam F The type of the member function (if C is not `std::nullptr_t`) or the function.
-     * @tparam Extra The type of the extra parameter that can be passed to the member function (can be `void`, `nlohmann::json`, or convertible from `nlohmann::json`).
+     * @tparam Context The type of the context parameter that can be passed to the member function (can be `void` or `context_t`).
      * @tparam Args The type of the arguments tuple.
      *
      * @param inst The instance of the class (can be a pointer or null pointer).
@@ -454,19 +411,20 @@ private:
      * Compile-time checks ensure that the code is type-safe and that certain conditions are met before the code is compiled.
      * This helps catch potential errors early in the development process and improves the overall robustness of the code.
      */
-    template<typename C, typename F, typename Extra, typename Args>
+    template<typename C, typename F, typename Context, typename Args>
     constexpr auto create_closure(C inst, F&& f) const
     {
         static_assert((std::is_pointer_v<C> && std::is_class_v<std::remove_pointer_t<C>>) || std::is_null_pointer_v<C>);
-        return [func = std::forward<F>(f), inst](const nlohmann::json& extra, const nlohmann::json& params) {
+        return [func = std::forward<F>(f), inst](const context_t& ctx, const nlohmann::json& params) {
             assert(params.is_array());
             constexpr auto args_size = std::tuple_size<std::decay_t<Args>>::value;
-            constexpr auto arg_pos   = std::is_void_v<Extra> ? 0 : 1;
+            constexpr auto arg_pos   = std::is_void_v<Context> ? 0 : 1;
 
             if constexpr (args_size == arg_pos + 1) {
                 if constexpr (std::is_same_v<std::decay_t<std::tuple_element_t<arg_pos, Args>>, nlohmann::json>) {
                     auto&& tuple_args = std::tuple_cat(
-                        details::make_inst_tuple(inst), details::make_extra_tuple<Extra>(extra), std::make_tuple(params)
+                        details::make_inst_tuple(inst), details::make_context_tuple<Context>(ctx),
+                        std::make_tuple(params)
                     );
 
                     return details::invoke_function(func, std::forward<decltype(tuple_args)>(tuple_args));
@@ -474,10 +432,10 @@ private:
             }
 
             if (params.size() + arg_pos == args_size) {
-                constexpr auto offset = std::is_void_v<Extra> ? 0U : 1U;
+                constexpr auto offset = std::is_void_v<Context> ? 0U : 1U;
                 auto&& tuple_args     = std::tuple_cat(
-                    details::make_inst_tuple(inst), details::make_extra_tuple<Extra>(extra),
-                    details::convert_args<Extra, Args>(
+                    details::make_inst_tuple(inst), details::make_context_tuple<Context>(ctx),
+                    details::convert_args<Context, Args>(
                         params, details::offset_sequence_t<offset, std::make_index_sequence<args_size - offset>>{}
                     )
                 );
@@ -489,30 +447,6 @@ private:
         };
     }
 };
-
-/**
- * @brief Checks whether @a response is an error response.
- *
- * @param response JSON RPC response.
- * @return Whether the response is an error response.
- */
-bool is_error_response(const nlohmann::json& response);
-
-/**
- * @brief Gets the error code from an error response.
- *
- * @param response JSON RPC error response.
- * @return The error code.
- */
-int get_error_code(const nlohmann::json& response);
-
-/**
- * @brief Gets the error message from an error response.
- *
- * @param response JSON RPC error response.
- * @return The error message.
- */
-std::string get_error_message(const nlohmann::json& response);
 
 }  // namespace wwa::json_rpc
 

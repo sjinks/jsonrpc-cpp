@@ -9,7 +9,7 @@ option(ENABLE_MAINTAINER_MODE "Enable maintainer mode" OFF)
 
 project(
     wwa_jsonrpc
-    VERSION 2.0.0
+    VERSION 3.0.0
     DESCRIPTION "JSON-RPC 2.0 library"
     HOMEPAGE_URL "https://sjinks.github.io/jsonrpc-cpp/"
     LANGUAGES CXX
@@ -40,8 +40,8 @@ endif()
 
 if(BUILD_TESTS)
     include(FindGTest)
-    find_package(GTest CONFIG COMPONENTS gtest gmock)
-    if(NOT TARGET GTest::gtest OR NOT TARGET GTest::gmock)
+    find_package(GTest CONFIG)
+    if(NOT TARGET GTest::gtest)
         message(STATUS "Google Test not found, fetching it from GitHub")
         # renovate: datasource=github-tags depName=google/googletest
         set(GTEST_VERSION "v1.15.2")
@@ -119,7 +119,8 @@ target_sources(
     PRIVATE
         src/exception.cpp
         src/dispatcher.cpp
-        src/dispatcher_p.cpp
+        src/request.cpp
+        src/utils.cpp
     PUBLIC
         FILE_SET HEADERS
         TYPE HEADERS
@@ -129,6 +130,7 @@ target_sources(
             src/exception.h
             src/export.h
             src/details.h
+            src/utils.h
 )
 
 set_target_properties(

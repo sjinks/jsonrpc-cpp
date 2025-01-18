@@ -5,6 +5,7 @@
 #include <nlohmann/json.hpp>
 
 #include "base.h"
+#include "exception.h"
 
 using namespace std::string_literals;
 using namespace nlohmann::json_literals;
@@ -15,25 +16,14 @@ class ErrorHandlingTest : public BaseDispatcherTest,
 TEST_P(ErrorHandlingTest, TestErrorHandling)
 {
     const auto& [input, expected] = GetParam();
-    const auto response           = this->dispatcher().parse_and_process_request(input);
-    const auto actual             = nlohmann::json::parse(response);
+
+    const auto actual = this->dispatcher().process_request(nlohmann::json::parse(input));
 
     EXPECT_EQ(actual, expected);
 }
 
 // clang-format off
 INSTANTIATE_TEST_SUITE_P(RequestParsingFromStandard, ErrorHandlingTest, testing::Values(
-    // rpc call with invalid JSON
-    std::make_tuple(R"({"jsonrpc": "2.0", "method": "foobar, "params": "bar", "baz])"s, nlohmann::json({
-        {
-            "error", {
-                { "code", wwa::json_rpc::exception::PARSE_ERROR },
-                { "message", R"([json.exception.parse_error.101] parse error at line 1, column 40: syntax error while parsing object - invalid literal; last read: '"foobar, "p'; expected '}')" }
-            }
-        },
-        { "id", nullptr },
-        { "jsonrpc", "2.0" }
-    })),
     // rpc call with invalid Request object
     std::make_tuple(R"({"jsonrpc": "2.0", "method": 1, "params": "bar"})"s, nlohmann::json({
         {
@@ -51,17 +41,6 @@ INSTANTIATE_TEST_SUITE_P(RequestParsingFromStandard, ErrorHandlingTest, testing:
             "error", {
                 { "code", wwa::json_rpc::exception::INVALID_REQUEST },
                 { "message", wwa::json_rpc::err_empty_batch }
-            }
-        },
-        { "id", nullptr },
-        { "jsonrpc", "2.0" }
-    })),
-    // rpc call Batch, invalid JSON
-    std::make_tuple(R"([{"jsonrpc": "2.0", "method": "sum", "params": [1,2,4], "id": "1"},{"jsonrpc": "2.0", "method"])"s, nlohmann::json({
-        {
-            "error", {
-                { "code", wwa::json_rpc::exception::PARSE_ERROR },
-                { "message", "[json.exception.parse_error.101] parse error at line 1, column 95: syntax error while parsing object separator - unexpected ']'; expected ':'" }
             }
         },
         { "id", nullptr },
@@ -89,17 +68,6 @@ INSTANTIATE_TEST_SUITE_P(RequestParsingFromStandard, ErrorHandlingTest, testing:
 ));
 
 INSTANTIATE_TEST_SUITE_P(RequestParsing, ErrorHandlingTest, testing::Values(
-    // Empty input
-    std::make_tuple(""s, nlohmann::json({
-        {
-            "error", {
-                { "code", wwa::json_rpc::exception::PARSE_ERROR },
-                { "message", "[json.exception.parse_error.101] parse error at line 1, column 1: attempting to parse an empty input; check that your input string or stream contains the expected JSON" }
-            }
-        },
-        { "id", nullptr },
-        { "jsonrpc", "2.0" }
-    })),
     // Empty method
     std::make_tuple(R"({"jsonrpc": "2.0", "method": "", "id": 3})"s, nlohmann::json({
         {
@@ -166,6 +134,17 @@ INSTANTIATE_TEST_SUITE_P(RequestParsing, ErrorHandlingTest, testing::Values(
             }
         },
         { "id", 3 },
+        { "jsonrpc", "2.0" }
+    })),
+    // Invalid request
+    std::make_tuple(R"(null)"s, nlohmann::json({
+        {
+            "error", {
+                { "code", wwa::json_rpc::exception::INVALID_REQUEST },
+                { "message", wwa::json_rpc::err_not_jsonrpc_2_0_request }
+            }
+        },
+        { "id", nullptr },
         { "jsonrpc", "2.0" }
     }))
 ));

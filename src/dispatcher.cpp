@@ -4,13 +4,14 @@
  */
 
 #include "dispatcher.h"
-#include <nlohmann/json_fwd.hpp>
 #include "dispatcher_p.h"
 #include "exception.h"
+#include "request.h"
+#include "utils.h"
 
 namespace wwa::json_rpc {
 
-dispatcher::dispatcher() : d_ptr(std::make_unique<dispatcher_private>(this)) {}
+dispatcher::dispatcher() : d_ptr(std::make_unique<dispatcher_private>()) {}
 
 dispatcher::~dispatcher() = default;
 
@@ -19,59 +20,89 @@ void dispatcher::add_internal_method(std::string_view method, handler_t&& handle
     this->d_ptr->add_handler(std::string(method), std::move(handler));
 }
 
-std::string dispatcher::parse_and_process_request(const std::string& request, const nlohmann::json& extra)
+nlohmann::json dispatcher::process_request(const nlohmann::json& request, const std::any& data)
 {
-    nlohmann::json req;
+    if (request.is_array()) {
+        return this->process_batch_request(request, data);
+    }
+
+    if (!request.is_object()) {
+        const exception e(exception::INVALID_REQUEST, err_not_jsonrpc_2_0_request);
+        this->request_failed(nullptr, &e, false);
+        return generate_error_response(e, nlohmann::json(nullptr));
+    }
+
+    return this->do_process_request(request, data, false);
+}
+
+nlohmann::json dispatcher::do_process_request(const nlohmann::json& request, const std::any& data, bool)
+{
+    nlohmann::json discarded = nlohmann::json::value_t::discarded;
+
+    assert(request.is_object());
+
+    auto request_id   = get_request_id(request);
+    bool is_discarded = false;
     try {
-        req = nlohmann::json::parse(request);
+        const auto req = jsonrpc_request::from_json(request);
+        is_discarded   = req.id.is_discarded();
+
+        dispatcher::context_t ctx = std::make_pair(data, req.extra);
+        const auto res            = this->invoke(req.method, req.params, ctx);
+        if (!request_id.is_null()) {
+            // clang-format off
+            return {
+                {"jsonrpc", "2.0"},
+                {"result", res},
+                {"id", req.id}
+            };
+            // clang-format on
+        }
+
+        return discarded;
     }
-    catch (const nlohmann::json::exception& e) {
-        this->on_request(nlohmann::json(nlohmann::json::value_t::discarded), extra);
-        const auto json = dispatcher_private::generate_error_response(
-            exception(exception::PARSE_ERROR, e.what()), nlohmann::json(nullptr)
-        );
+    catch (const std::exception& e) {
+        this->request_failed(request_id, &e, false);
+        const auto* eptr = dynamic_cast<const exception*>(&e);
+        const auto ex    = eptr != nullptr ? *eptr : exception(exception::INTERNAL_ERROR, e.what());
+        return is_discarded ? discarded : generate_error_response(ex, request_id);
+    }
+}
 
-        this->on_request_processed({}, json, extra);
-        return json.dump();
+nlohmann::json dispatcher::process_batch_request(const nlohmann::json& request, const std::any& data)
+{
+    if (request.empty()) {
+        const exception e(exception::INVALID_REQUEST, err_empty_batch);
+        this->request_failed(nullptr, &e, true);
+        return generate_error_response(e, nlohmann::json(nullptr));
     }
 
-    const auto response = this->process_request(req, extra);
-    return response.is_discarded() ? std::string{} : response.dump();
+    auto response = nlohmann::json::array();
+    for (const auto& req : request) {
+        if (!req.is_object()) {
+            const exception e(exception::INVALID_REQUEST, err_not_jsonrpc_2_0_request);
+            this->request_failed(nullptr, &e, false);
+
+            response.push_back(generate_error_response(e, nlohmann::json(nullptr)));
+        }
+        else if (const auto res = this->do_process_request(req, data, true); !res.is_discarded()) {
+            response.push_back(res);
+        }
+    }
+
+    return response.empty() ? nlohmann::json(nlohmann::json::value_t::discarded) : response;
 }
 
-nlohmann::json dispatcher::process_request(const nlohmann::json& request, const nlohmann::json& extra)
+nlohmann::json
+dispatcher::invoke(const std::string& method, const nlohmann::json& params, const dispatcher::context_t& ctx)
 {
-    return this->d_ptr->process_request(request, extra);
+    if (const auto handler = this->d_ptr->find_handler(method); handler != nullptr) {
+        return handler(ctx, params);
+    }
+
+    throw method_not_found_exception();
 }
 
-void dispatcher::on_request(const nlohmann::json&, const nlohmann::json&)
-{
-    // Do nothing
-}
-
-void dispatcher::on_method(const std::string&, const nlohmann::json&)
-{
-    // Do nothing
-}
-
-void dispatcher::on_request_processed(const std::string&, const nlohmann::json&, const nlohmann::json&)
-{
-    // Do nothing
-}
-
-bool is_error_response(const nlohmann::json& response)
-{
-    return response.is_object() && response.contains("error") && response["error"].is_object();
-}
-
-int get_error_code(const nlohmann::json& response)
-{
-    return response["error"].value("code", 0);
-}
-
-std::string get_error_message(const nlohmann::json& response)
-{
-    return response["error"].value("message", "");
-}
+void dispatcher::request_failed(const nlohmann::json&, const std::exception*, bool) {}
 
 }  // namespace wwa::json_rpc

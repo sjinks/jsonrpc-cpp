@@ -57,10 +57,21 @@ public:
         // Read the request somehow
         const std::string input = read_request();
 
-        const std::string response = this->m_dispatcher.parse_and_process_request(input);
-        if (!response.empty()) {
-            // Send the response
-            send_response(response);
+        try {
+            const auto json     = nlohmann::json::parse(input);
+            const auto result   = this->m_dispatcher.process_request(json);
+            const auto response = wwa::json_rpc::serialize_repsonse(result);
+            if (!response.empty()) {
+                // Send the response
+                send_response(response);
+            }
+        }
+        catch (const nlohmann::json::exception& e) {
+            send_response(
+                wwa::json_rpc::generate_error_response(
+                    {wwa::json_rpc::exception::PARSE_ERROR, e.what()}
+                )
+            );
         }
     }
 
@@ -78,8 +89,8 @@ private:
 
 Sometimes, it may be necessary to pass some additional information to the handler. For example, an IP address of the client or authentication information.
 
-Method handlers can accept an `extra` parameter of `nlohmann::json` type or a type convertible from `nlohmann::json`. That parameter is passed from
-`dispatcher::parse_and_process_request()` and `dispatcher::process_request()` methods.
+Method handlers can accept a `context` parameter. That parameter is constructed from the data passed `dispatcher::process_request()` method and
+additional fields from the JSON RPC request.
 
 For example,
 
@@ -87,8 +98,6 @@ For example,
 struct extra_data {
     std::string ip;
 };
-
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(extra_data, ip);
 
 class my_server {
 public:
@@ -100,12 +109,12 @@ public:
     void handle_request()
     {
         // Read the request somehow
-        const std::string input = read_request();
+        const nlohmann::json input = read_request();
 
         extra_data extra;
         extra.ip = get_peer_ip(); // Returns the IP of the client
 
-        const std::string response = this->m_dispatcher.parse_and_process_request(input, extra);
+        const auto response = wwa::json_rpc::serialize_repsonse(this->m_dispatcher.process_request(input, extra));
         if (!response.empty()) {
             // Send the response
             send_response(response);
@@ -115,9 +124,9 @@ public:
 private:
     wwa::json_rpc::dispatcher m_dispatcher;
 
-    int add(const extra_data& extra, int a, int b)
+    int add(const wwa::json_rpc::dispatcher::context_t& ctx, int a, int b)
     {
-        std::cout << "IP address is " << extra_data.ip << "\n";
+        std::cout << "IP address is " << std::any_cast<extra_data>(ctx.first).ip << "\n";
         return a + b;
     }
 };
@@ -138,52 +147,16 @@ For example, given the request:
 }
 ```
 
-There are extra fields in the request: `auth` and `user`.
+There are extra fields in the request: `auth` and `user`. These fields will be collected into an object and passed as a part of the context.
 
-If the `extra` parameter passed to `dispatcher::parse_and_process_request()` or `dispatcher::process_request()` is an object (in JSON terms),
-the library will pass those extra fields in the `extra` property of the `extra` parameter.
-
-For example, for the request above, the `extra` parameter will look like this:
-
-```json
+```cpp
+int my_method(const wwa::json_rpc::dispatcher::context_t& ctx, int a, int b)
 {
-    // data passed to `dispatcher::parse_and_process_request()` or `dispatcher::process_request()`
+    const auto& extra = ctx.second;
+    std::string auth = extra.at("auth");
+    std::string user = extra.at("user");
     // ...
-
-    "extra": {
-        "auth": "secret",
-        "user": "admin"
-    }
 }
-```
-
-The `extra_data` structure can be modified to include that field:
-
-```cpp
-struct extra_data {
-    std::string ip;
-    nlohmann::json extra;
-};
-
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(extra_data, ip, extra);
-```
-
-Or like this:
-
-```cpp
-struct extra_request_fields {
-    std::string auth;
-    std::string user;
-};
-
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(extra_request_fields, auth, user);
-
-struct extra_data {
-    std::string ip;
-    extra_request_fields extra;
-};
-
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(extra_data, ip, extra);
 ```
 
 There are more examples available in the [test](https://github.com/sjinks/jsonrpc-cpp/tree/master/test) subdirectory
