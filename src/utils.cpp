@@ -1,4 +1,11 @@
 #include "utils.h"
+#include "exception.h"
+
+/**
+ * @file utils.h
+ * @brief Implemenmtation of utility functions for JSON RPC handling.
+ * @internal
+ */
 
 namespace wwa::json_rpc {
 

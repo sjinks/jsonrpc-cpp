@@ -1,13 +1,19 @@
 #ifndef AB18CB0F_2A0A_401A_A253_B793A4B1FFB4
 #define AB18CB0F_2A0A_401A_A253_B793A4B1FFB4
 
+/**
+ * @file utils.h
+ * @brief Utility functions for JSON RPC handling.
+ */
+
 #include <string>
 #include <nlohmann/json.hpp>
 
-#include "exception.h"
 #include "export.h"
 
 namespace wwa::json_rpc {
+
+class exception;
 
 /**
  * @brief Checks if the provided JSON value is a valid JSON RPC request ID.

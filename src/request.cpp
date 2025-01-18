@@ -12,6 +12,7 @@
  * The file uses the nlohmann::json library for JSON handling and includes additional headers for exception handling and utility functions.
  * 
  * @see https://www.jsonrpc.org/specification#request_object
+ * @internal
  */
 
 namespace wwa::json_rpc {
