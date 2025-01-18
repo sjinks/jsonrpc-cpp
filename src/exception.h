@@ -31,6 +31,13 @@ namespace wwa::json_rpc {
 static constexpr std::string_view err_not_jsonrpc_2_0_request = "Not a JSON-RPC 2.0 request";
 
 /**
+ * @brief Error request for when the request is not valid.
+ * @see exception::INVALID_REQUEST
+ * @see https://www.jsonrpc.org/specification#request_object
+ */
+static constexpr std::string_view err_bad_request = "Bad request";
+
+/**
  * @brief Error message for when the parameters passed to the method are not correct.
  * @see exception::INVALID_PARAMS
  */

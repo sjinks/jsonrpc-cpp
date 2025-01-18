@@ -65,8 +65,8 @@ jsonrpc_request jsonrpc_request::from_json(const nlohmann::json& request)
     try {
         request.get_to(req);
     }
-    catch (const nlohmann::json::exception& e) {
-        throw exception(exception::INVALID_REQUEST, e.what());
+    catch (const nlohmann::json::exception&) {
+        throw exception(exception::INVALID_REQUEST, err_bad_request);
     }
 
     if (req.jsonrpc != "2.0") {

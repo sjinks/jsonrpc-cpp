@@ -38,7 +38,7 @@ INSTANTIATE_TEST_SUITE_P(MethodInvocation, MethodInvocationTest, testing::Values
         R"([
             {"jsonrpc":"2.0","result":7,"id":"1"},
             {"jsonrpc":"2.0","result":19,"id":"2"},
-            {"jsonrpc":"2.0","error":{"code":-32600,"message":"[json.exception.out_of_range.403] key 'jsonrpc' not found"},"id":null},
+            {"jsonrpc":"2.0","error":{"code":-32600,"message":"Bad request"},"id":null},
             {"jsonrpc":"2.0","error":{"code":-32601,"message":"Method not found"},"id":"5"},
             {"jsonrpc":"2.0","result":["hello",5],"id":"9"}
         ])"_json

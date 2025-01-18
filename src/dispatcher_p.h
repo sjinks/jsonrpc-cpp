@@ -7,6 +7,7 @@
  * @internal
  */
 
+#include <atomic>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -56,9 +57,23 @@ public:
         return nullptr;
     }
 
+    /**
+     * @brief Generates a unique request ID.
+     *
+     * @return A unique request ID.
+     *
+     * @details This method generates a unique request ID by incrementing an atomic counter.
+     */
+    static std::uint64_t get_and_increment_counter() noexcept
+    {
+        return dispatcher_private::m_id_counter.fetch_add(1, std::memory_order_relaxed);
+    }
+
 private:
     /** @brief Map of method names to handler functions. */
     std::unordered_map<std::string, dispatcher::handler_t> m_methods;
+
+    static inline std::atomic_uint64_t m_id_counter = 0;  ///< Counter for generating unique request IDs.
 };
 
 }  // namespace wwa::json_rpc
