@@ -225,6 +225,23 @@ private:
     int m_code;             ///< Error code.
 };
 
+/**
+ * @brief Exception thrown when the method is not found.
+ */
+class method_not_found_exception : public exception {
+public:
+    method_not_found_exception() : exception(exception::METHOD_NOT_FOUND, err_method_not_found) {}
+    method_not_found_exception(const method_not_found_exception&)            = default;
+    method_not_found_exception(method_not_found_exception&&)                 = default;
+    method_not_found_exception& operator=(const method_not_found_exception&) = default;
+    method_not_found_exception& operator=(method_not_found_exception&&)      = default;
+
+    /**
+     * @brief Default destructor
+     */
+    ~method_not_found_exception() override;
+};
+
 }  // namespace wwa::json_rpc
 
 #endif /* CC75354D_5C03_4B34_B773_96A9E6189611 */

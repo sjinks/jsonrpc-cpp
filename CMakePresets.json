@@ -101,7 +101,8 @@
         {
             "name": "base",
             "hidden": true,
-            "verbose": true
+            "verbose": true,
+            "jobs": 0
         },
         {
             "name": "default",

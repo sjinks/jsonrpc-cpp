@@ -248,33 +248,22 @@ requires(std::is_class_v<std::remove_pointer_t<C>> || std::is_null_pointer_v<C>)
 }
 
 /**
- * @brief Creates a tuple from the provided JSON object based on the type of @a Extra.
+ * @brief Creates a tuple from the provided context object based on the type of @a Context.
  *
- * @tparam Extra The type to be extracted from the JSON object.
- * @param extra The JSON object from which the tuple is created.
- * @return A tuple containing the extracted value(s) from the JSON object.
- * @retval std::tuple<> If @a Extra is `void`.
- * @retval std::tuple<nlohmann::json> If @a Extra is `nlohmann::json`.
- * @retval std::tuple<Extra> If @a Extra is a different type.
+ * @tparam Context The type of the context.
+ * @param ctx The context object from which the tuple is created.
+ * @return A tuple containing the context object.
  *
  * @throws wwa::json_rpc::exception If the extraction of @a Extra from the JSON object @a extra fails.
  */
-template<typename Extra>
-constexpr auto make_extra_tuple([[maybe_unused]] const nlohmann::json& extra)
+template<typename Context>
+constexpr auto make_context_tuple([[maybe_unused]] const std::pair<std::any, nlohmann::json>& ctx)
 {
-    if constexpr (std::is_void_v<Extra>) {
+    if constexpr (std::is_void_v<Context>) {
         return std::make_tuple();
     }
-    else if constexpr (std::is_same_v<std::decay_t<Extra>, nlohmann::json>) {
-        return std::make_tuple(extra);
-    }
     else {
-        try {
-            return std::make_tuple(extra.get<Extra>());
-        }
-        catch (const nlohmann::json::exception& e) {
-            throw exception(wwa::json_rpc::exception::INVALID_REQUEST, e.what());
-        }
+        return std::make_tuple(ctx);
     }
 }
 
