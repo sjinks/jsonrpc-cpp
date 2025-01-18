@@ -47,8 +47,8 @@ nlohmann::json dispatcher::do_process_request(const nlohmann::json& request, con
         const auto req = jsonrpc_request::from_json(request);
         is_discarded   = req.id.is_discarded();
 
-        dispatcher::context_t ctx = std::make_pair(data, req.extra);
-        const auto res            = this->invoke(req.method, req.params, ctx);
+        const dispatcher::context_t ctx = std::make_pair(data, req.extra);
+        const auto res                  = this->invoke(req.method, req.params, ctx);
         if (!request_id.is_null()) {
             // clang-format off
             return {

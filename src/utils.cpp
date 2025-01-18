@@ -2,7 +2,7 @@
 #include "exception.h"
 
 /**
- * @file utils.h
+ * @file
  * @brief Implemenmtation of utility functions for JSON RPC handling.
  * @internal
  */

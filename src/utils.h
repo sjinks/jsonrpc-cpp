@@ -2,7 +2,7 @@
 #define AB18CB0F_2A0A_401A_A253_B793A4B1FFB4
 
 /**
- * @file utils.h
+ * @file
  * @brief Utility functions for JSON RPC handling.
  */
 
