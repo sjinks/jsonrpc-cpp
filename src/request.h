@@ -4,7 +4,6 @@
 /**
  * @file
  * @brief Defines the structure and functionality for handling JSON RPC requests.
- * @internal
  */
 
 #include <string>

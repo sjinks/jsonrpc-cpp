@@ -9,7 +9,7 @@ option(ENABLE_MAINTAINER_MODE "Enable maintainer mode" OFF)
 
 project(
     wwa_jsonrpc
-    VERSION 3.0.0
+    VERSION 3.1.0
     DESCRIPTION "JSON-RPC 2.0 library"
     HOMEPAGE_URL "https://sjinks.github.io/jsonrpc-cpp/"
     LANGUAGES CXX
@@ -130,6 +130,7 @@ target_sources(
             src/exception.h
             src/export.h
             src/details.h
+            src/request.h
             src/utils.h
 )
 
