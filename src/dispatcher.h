@@ -13,6 +13,7 @@
 
 #include <any>
 #include <cassert>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -333,18 +334,33 @@ public:
     nlohmann::json process_request(const nlohmann::json& request, const std::any& data = {});
 
 protected:
-    virtual nlohmann::json do_process_request(const nlohmann::json& request, const std::any& data, bool is_batch);
+    /**
+     * @brief Processes a single, non-batch JSON RPC request.
+     *
+     * @param request The JSON RPC request as a JSON object.
+     * @param data Additional information to pass to the method handlers as a part of the context.
+     * @param is_batch Indicates whether the request is a part of a batch request.
+     * @param unique_id The unique request ID.
+     * @return JSON response.
+     *
+     * @details This method processes a JSON RPC request by invoking the method handlers for the specified method.
+     * If the request is a batch request, it will call `process_batch_request()`.
+     */
+    virtual nlohmann::json
+    do_process_request(const nlohmann::json& request, const std::any& data, bool is_batch, std::uint64_t unique_id);
 
     /**
      * @brief Processes a batch request.
      *
      * @param request The batch request as a `nlohmann::json` array.
      * @param data Additional information to pass to the method handlers as a part of the context.
+     * @param unique_id The unique request ID.
      * @return The response as a JSON array.
      *
      * @details This method processes a batch request by invoking the method handlers for each request in the batch.
      */
-    virtual nlohmann::json process_batch_request(const nlohmann::json& request, const std::any& data);
+    virtual nlohmann::json
+    process_batch_request(const nlohmann::json& request, const std::any& data, std::uint64_t unique_id);
 
     /**
      * @brief Invokes a method handler.
@@ -352,16 +368,28 @@ protected:
      * @param method The name of the method to invoke.
      * @param params The parameters for the method.
      * @param ctx The context to pass to the method handlers.
+     * @param unique_id The unique request ID.
      * @return The result of the method invocation as a JSON object.
      *
      * @details This method finds the handler for the specified method and invokes it with the provided parameters.
      * @throws exception If the method is not found or the invocation fails.
      * @see exception::METHOD_NOT_FOUND
      */
-    virtual nlohmann::json
-    invoke(const std::string& method, const nlohmann::json& params, const dispatcher::context_t& ctx);
+    virtual nlohmann::json invoke(
+        const std::string& method, const nlohmann::json& params, const dispatcher::context_t& ctx,
+        std::uint64_t unique_id
+    );
 
-    virtual void request_failed(const nlohmann::json& request_id, const std::exception* e, bool is_batch);
+    /**
+     * @brief Invoked when a request fails.
+     * 
+     * @param request_id JSON RPC request ID.
+     * @param e Exception that is the reason for the failure.
+     * @param is_batch Whether this is a top-level batch request.
+     * @param unique_id Unique request ID.
+     */
+    virtual void
+    request_failed(const nlohmann::json& request_id, const std::exception* e, bool is_batch, std::uint64_t unique_id);
 
 private:
     /**

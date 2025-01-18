@@ -29,7 +29,7 @@ INSTANTIATE_TEST_SUITE_P(RequestParsingFromStandard, ErrorHandlingTest, testing:
         {
             "error", {
                 { "code", wwa::json_rpc::exception::INVALID_REQUEST },
-                { "message", "[json.exception.type_error.302] type must be string, but is number" }
+                { "message", wwa::json_rpc::err_bad_request }
             }
         },
         { "id", nullptr },
@@ -95,7 +95,7 @@ INSTANTIATE_TEST_SUITE_P(RequestParsing, ErrorHandlingTest, testing::Values(
         {
             "error", {
                 { "code", wwa::json_rpc::exception::INVALID_REQUEST },
-                { "message", "[json.exception.out_of_range.403] key 'method' not found" }
+                { "message", wwa::json_rpc::err_bad_request }
             }
         },
         { "id", nullptr },
@@ -141,7 +141,7 @@ INSTANTIATE_TEST_SUITE_P(RequestParsing, ErrorHandlingTest, testing::Values(
         {
             "error", {
                 { "code", wwa::json_rpc::exception::INVALID_REQUEST },
-                { "message", wwa::json_rpc::err_not_jsonrpc_2_0_request }
+                { "message", wwa::json_rpc::err_bad_request }
             }
         },
         { "id", nullptr },
