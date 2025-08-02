@@ -51,117 +51,157 @@ struct function_traits;
  * @brief Specialization for function pointers.
  *
  * @tparam R The return type of the function.
+ * @tparam NX Whether the function is noexcept.
  * @tparam Args The argument types of the function.
  */
-template<typename R, typename... Args>
-struct function_traits<R (*)(Args...)> {
+template<typename R, bool NX, typename... Args>
+struct function_traits<R (*)(Args...) noexcept(NX)> {
     using return_type = R;                    ///< The return type of the function.
     using args_tuple  = std::tuple<Args...>;  ///< A tuple of the argument types.
 };
-
-/**
- * @brief Specialization for noexcept function pointers.
- *
- * @tparam R The return type of the function.
- * @tparam Args The argument types of the function.
- */
-template<typename R, typename... Args>
-struct function_traits<R (*)(Args...) noexcept> : function_traits<R (*)(Args...)> {};
 
 /**
  * @brief Specialization for member function pointers.
  *
  * @tparam R The return type of the member function.
  * @tparam C The class type.
+ * @tparam NX Whether the member function is noexcept.
  * @tparam Args The argument types of the member function.
  */
-template<typename R, typename C, typename... Args>
-struct function_traits<R (C::*)(Args...)> {
-    using return_type = R;                    ///< The return type of the member function.
-    using args_tuple  = std::tuple<Args...>;  ///< A tuple of the argument types.
-};
+template<typename R, typename C, bool NX, typename... Args>
+struct function_traits<R (C::*)(Args...) noexcept(NX)> : function_traits<R (*)(Args...) noexcept(NX)> {};
 
 /**
  * @brief Specialization for const member function pointers.
  *
  * @tparam R The return type of the member function.
  * @tparam C The class type.
+ * @tparam NX Whether the member function is noexcept.
  * @tparam Args The argument types of the member function.
  */
-template<typename R, typename C, typename... Args>
-struct function_traits<R (C::*)(Args...) const> : function_traits<R (C::*)(Args...)> {};
+template<typename R, typename C, bool NX, typename... Args>
+struct function_traits<R (C::*)(Args...) const noexcept(NX)> : function_traits<R (C::*)(Args...) noexcept(NX)> {};
 
 /**
  * @brief Specialization for volatile member function pointers.
  *
  * @tparam R The return type of the member function.
  * @tparam C The class type.
+ * @tparam NX Whether the member function is noexcept.
  * @tparam Args The argument types of the member function.
  */
-template<typename R, typename C, typename... Args>
-struct function_traits<R (C::*)(Args...) volatile> : function_traits<R (C::*)(Args...)> {};
+template<typename R, typename C, bool NX, typename... Args>
+struct function_traits<R (C::*)(Args...) volatile noexcept(NX)> : function_traits<R (C::*)(Args...) noexcept(NX)> {};
 
 /**
  * @brief Specialization for const volatile member function pointers.
  *
  * @tparam R The return type of the member function.
  * @tparam C The class type.
+ * @tparam NX Whether the member function is noexcept.
  * @tparam Args The argument types of the member function.
  */
-template<typename R, typename C, typename... Args>
-struct function_traits<R (C::*)(Args...) const volatile> : function_traits<R (C::*)(Args...)> {};
+template<typename R, typename C, bool NX, typename... Args>
+struct function_traits<R (C::*)(Args...) const volatile noexcept(NX)>
+    : function_traits<R (C::*)(Args...) noexcept(NX)> {};
 
 /**
- * @brief Specialization for noexcept member function pointers.
+ * @brief Specialization for lvalue reference member function pointers.
  *
  * @tparam R The return type of the member function.
  * @tparam C The class type.
+ * @tparam NX Whether the member function is noexcept.
  * @tparam Args The argument types of the member function.
  */
-template<typename R, typename C, typename... Args>
-struct function_traits<R (C::*)(Args...) noexcept> : function_traits<R (C::*)(Args...)> {};
+template<typename R, typename C, bool NX, typename... Args>
+struct function_traits<R (C::*)(Args...) & noexcept(NX)> : function_traits<R (C::*)(Args...) noexcept(NX)> {};
 
 /**
- * @brief Specialization for const noexcept member function pointers.
+ * @brief Specialization for const lvalue reference member function pointers.
  *
  * @tparam R The return type of the member function.
  * @tparam C The class type.
+ * @tparam NX Whether the member function is noexcept.
  * @tparam Args The argument types of the member function.
  */
-template<typename R, typename C, typename... Args>
-struct function_traits<R (C::*)(Args...) const noexcept> : function_traits<R (C::*)(Args...)> {};
+template<typename R, typename C, bool NX, typename... Args>
+struct function_traits<R (C::*)(Args...) const & noexcept(NX)> : function_traits<R (C::*)(Args...) noexcept(NX)> {};
 
 /**
- * @brief Specialization for volatile noexcept member function pointers.
+ * @brief Specialization for volatile lvalue reference member function pointers.
  *
  * @tparam R The return type of the member function.
  * @tparam C The class type.
+ * @tparam NX Whether the member function is noexcept.
  * @tparam Args The argument types of the member function.
  */
-template<typename R, typename C, typename... Args>
-struct function_traits<R (C::*)(Args...) volatile noexcept> : function_traits<R (C::*)(Args...)> {};
+template<typename R, typename C, bool NX, typename... Args>
+struct function_traits<R (C::*)(Args...) volatile & noexcept(NX)> : function_traits<R (C::*)(Args...) noexcept(NX)> {};
 
 /**
- * @brief Specialization for const volatile noexcept member function pointers.
+ * @brief Specialization for const volatile lvalue reference member function pointers.
  *
  * @tparam R The return type of the member function.
  * @tparam C The class type.
+ * @tparam NX Whether the member function is noexcept.
  * @tparam Args The argument types of the member function.
  */
-template<typename R, typename C, typename... Args>
-struct function_traits<R (C::*)(Args...) const volatile noexcept> : function_traits<R (C::*)(Args...)> {};
+template<typename R, typename C, bool NX, typename... Args>
+struct function_traits<R (C::*)(Args...) const volatile & noexcept(NX)>
+    : function_traits<R (C::*)(Args...) noexcept(NX)> {};
+
+/**
+ * @brief Specialization for rvalue reference member function pointers.
+ *
+ * @tparam R The return type of the member function.
+ * @tparam C The class type.
+ * @tparam NX Whether the member function is noexcept.
+ * @tparam Args The argument types of the member function.
+ */
+template<typename R, typename C, bool NX, typename... Args>
+struct function_traits<R (C::*)(Args...) && noexcept(NX)> : function_traits<R (C::*)(Args...) noexcept(NX)> {};
+
+/**
+ * @brief Specialization for const rvalue reference member function pointers.
+ *
+ * @tparam R The return type of the member function.
+ * @tparam C The class type.
+ * @tparam NX Whether the member function is noexcept.
+ * @tparam Args The argument types of the member function.
+ */
+template<typename R, typename C, bool NX, typename... Args>
+struct function_traits<R (C::*)(Args...) const && noexcept(NX)> : function_traits<R (C::*)(Args...) noexcept(NX)> {};
+
+/**
+ * @brief Specialization for volatile rvalue reference member function pointers.
+ *
+ * @tparam R The return type of the member function.
+ * @tparam C The class type.
+ * @tparam NX Whether the member function is noexcept.
+ * @tparam Args The argument types of the member function.
+ */
+template<typename R, typename C, bool NX, typename... Args>
+struct function_traits<R (C::*)(Args...) volatile && noexcept(NX)> : function_traits<R (C::*)(Args...) noexcept(NX)> {};
+
+/**
+ * @brief Specialization for const volatile rvalue reference member function pointers.
+ *
+ * @tparam R The return type of the member function.
+ * @tparam C The class type.
+ * @tparam NX Whether the member function is noexcept.
+ * @tparam Args The argument types of the member function.
+ */
+template<typename R, typename C, bool NX, typename... Args>
+struct function_traits<R (C::*)(Args...) const volatile && noexcept(NX)>
+    : function_traits<R (C::*)(Args...) noexcept(NX)> {};
 
 /**
  * @brief Specialization for `std::function`.
  *
- * @tparam R The return type of the function.
- * @tparam Args The argument types of the function.
+ * @tparam S The type of the function, which includes the return type and argument types.
  */
-template<typename R, typename... Args>
-struct function_traits<std::function<R(Args...)>> {
-    using return_type = R;                    ///< The return type of the function.
-    using args_tuple  = std::tuple<Args...>;  ///< A tuple of the argument types.
-};
+template<typename S>
+struct function_traits<std::function<S>> : function_traits<std::decay_t<S>> {};
 
 /**
  * @brief Specialization for functors (objects with `operator()`).
@@ -169,14 +209,7 @@ struct function_traits<std::function<R(Args...)>> {
  * @tparam T The functor type.
  */
 template<typename T>
-struct function_traits {
-private:
-    using call_type = function_traits<decltype(&T::operator())>;  ///< Type traits for the call operator.
-
-public:
-    using return_type = typename call_type::return_type;  ///< The return type of the functor.
-    using args_tuple  = typename call_type::args_tuple;   ///< A tuple of the argument types.
-};
+struct function_traits : function_traits<decltype(&T::operator())> {};
 /** @} */
 
 /**
