@@ -73,7 +73,7 @@ private:
     /** @brief Map of method names to handler functions. */
     std::unordered_map<std::string, dispatcher::handler_t> m_methods;
 
-    static inline std::atomic_uint64_t m_id_counter = 0;  ///< Counter for generating unique request IDs.
+    static std::atomic_uint64_t m_id_counter;  ///< Counter for generating unique request IDs.
 };
 
 }  // namespace wwa::json_rpc

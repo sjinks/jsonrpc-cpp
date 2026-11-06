@@ -3,6 +3,13 @@
 #include <stdexcept>
 #include <gtest/gtest.h>
 
+namespace {
+[[noreturn]] void throwing_handler()
+{
+    throw std::invalid_argument("test");
+}
+}  // namespace
+
 BaseDispatcherTest::BaseDispatcherTest()
 {
     this->m_dispatcher.add("subtract", &BaseDispatcherTest::subtract, this);
@@ -21,7 +28,7 @@ BaseDispatcherTest::BaseDispatcherTest()
 
     this->m_dispatcher.add("sumv", &BaseDispatcherTest::sumv, this);
     this->m_dispatcher.add("s_sumv", &BaseDispatcherTest::s_sumv);
-    this->m_dispatcher.add("throwing", []() { throw std::invalid_argument("test"); });
+    this->m_dispatcher.add("throwing", &throwing_handler);
 }
 
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
