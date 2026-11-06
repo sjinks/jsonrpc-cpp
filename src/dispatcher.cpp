@@ -11,6 +11,8 @@
 
 namespace wwa::json_rpc {
 
+std::atomic_uint64_t dispatcher_private::m_id_counter{0};
+
 dispatcher::dispatcher() : d_ptr(std::make_unique<dispatcher_private>()) {}
 
 dispatcher::~dispatcher() = default;
@@ -33,8 +35,6 @@ nlohmann::json dispatcher::process_request(const nlohmann::json& request, const 
 nlohmann::json
 dispatcher::do_process_request(const nlohmann::json& request, const std::any& data, bool, std::uint64_t unique_id)
 {
-    nlohmann::json discarded = nlohmann::json::value_t::discarded;
-
     auto request_id   = get_request_id(request);
     bool is_discarded = false;
     try {
@@ -54,13 +54,14 @@ dispatcher::do_process_request(const nlohmann::json& request, const std::any& da
             // clang-format on
         }
 
-        return discarded;
+        return nlohmann::json(nlohmann::json::value_t::discarded);
     }
     catch (const std::exception& e) {
         this->request_failed(request_id, &e, false, unique_id);
         const auto* eptr = dynamic_cast<const exception*>(&e);
         const auto ex    = eptr != nullptr ? *eptr : exception(exception::INTERNAL_ERROR, e.what());
-        return is_discarded ? discarded : generate_error_response(ex, request_id);
+        return is_discarded ? nlohmann::json(nlohmann::json::value_t::discarded)
+                            : generate_error_response(ex, request_id);
     }
 }
 
